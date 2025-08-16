@@ -1,0 +1,6 @@
+
+*.pyc
+__pycache__/
+invoice_analyst.egg-info/
+.vscode/
+assets/

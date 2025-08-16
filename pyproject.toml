@@ -9,8 +9,11 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    # Add your runtime dependencies here, e.g.:
-    # "pandas >=2.0.0",
+    "streamlit ==1.48.1",
+    "mistralai",
+    "pdf2image",
+    "pytesseract",
+    "pdf-annotate",
 ]
 
 [project.optional-dependencies]
