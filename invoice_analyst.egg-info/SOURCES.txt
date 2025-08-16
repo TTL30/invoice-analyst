@@ -1,7 +1,0 @@
-README.md
-pyproject.toml
-invoice_analyst.egg-info/PKG-INFO
-invoice_analyst.egg-info/SOURCES.txt
-invoice_analyst.egg-info/dependency_links.txt
-invoice_analyst.egg-info/requires.txt
-invoice_analyst.egg-info/top_level.txt
