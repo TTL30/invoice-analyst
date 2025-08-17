@@ -3,6 +3,7 @@ import io
 import json
 import difflib
 import base64
+import fitz
 import pytesseract
 from PyPDF2 import PdfReader
 import pandas as pd
@@ -130,60 +131,94 @@ def structure_data_chat(client, prompt, response_format, model="pixtral-12b-late
     extracted_data = response.choices[0].message.content
     return extracted_data
 
-def convert_pdf_to_image_data(pdf_bytes, lang='eng'):
-   images = convert_from_bytes(pdf_bytes)
-   images_data = []
-   for img in images:
-       img_data = pytesseract.image_to_data(img, lang=lang, output_type=pytesseract.Output.DICT)
-       images_data.append(img_data)
-   return images_data
 
-def get_pdf_page_sizes(pdf_bytes):
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    sizes = []
-    for page in reader.pages:
-        w = float(page.mediabox.width)
-        h = float(page.mediabox.height)
-        sizes.append((w, h))
-    return sizes
+def is_float_equal(val1, val2, tol=1e-2):
+    """Check if two strings represent floats that are equal within a tolerance."""
+    try:
+        f1 = float(str(val1).replace(",", "."))
+        f2 = float(str(val2).replace(",", "."))
+        return abs(f1 - f2) < tol
+    except Exception:
+        return False
 
-def convert_image_coords_to_pdf(x, y, w, h, img_w, img_h, pdf_w, pdf_h):
-    x1_pdf = x * (pdf_w / img_w)
-    x2_pdf = (x + w) * (pdf_w / img_w)
-    y1_pdf = pdf_h - ((y + h) * (pdf_h / img_h))
-    y2_pdf = pdf_h - (y * (pdf_h / img_h))
-    return x1_pdf, y1_pdf, x2_pdf, y2_pdf
+def fuzzy_in_line(value, line_elements, threshold=0.85):
+    """Return True if value is fuzzily present in line_elements or numerically equal."""
+    value_str = str(value).strip()
+    for elem in line_elements:
+        # Fuzzy string match
+        ratio = difflib.SequenceMatcher(None, value_str, elem).ratio()
+        if ratio >= threshold:
+            return True
+        # Numeric match
+        if is_float_equal(value_str, elem):
+            return True
+    return False
 
-def extract_text_positions_from_images_data(images_data, data_to_research, pdf_bytes, match_threshold=0.8):
-    import difflib
-    from PIL import Image
-    label, text = data_to_research
-    annotations = []
-    search_words = [w.strip().lower() for w in text.split() if w.strip()]
-    n = len(search_words)
-    pdf_page_sizes = get_pdf_page_sizes(pdf_bytes)
-    images = convert_from_bytes(pdf_bytes)
-    for page_num, data in enumerate(images_data):
-        img_w, img_h = images[page_num].width, images[page_num].height
-        pdf_w, pdf_h = pdf_page_sizes[page_num]
-        ocr_words = [w.strip().lower() for w in data['text']]
-        i = 0
-        while i <= len(ocr_words) - n:
-            window = ocr_words[i:i+n]
-            window_text = " ".join(window)
-            ratio = difflib.SequenceMatcher(None, window_text, text.strip().lower()).ratio()
-            if ratio >= match_threshold:
-                x = min(data['left'][i:i+n])
-                y = min(data['top'][i:i+n])
-                w = max([data['left'][j] + data['width'][j] for j in range(i, i+n)]) - x
-                h = max([data['top'][j] + data['height'][j] for j in range(i, i+n)]) - y
-                x1_pdf, y1_pdf, x2_pdf, y2_pdf = convert_image_coords_to_pdf(
-                    x, y, w, h, img_w, img_h, pdf_w, pdf_h
-                )
-                box = (page_num, x1_pdf, y1_pdf, x2_pdf, y2_pdf, label, (1, 0, 0))
-                if box not in annotations:
-                    annotations.append(box)
-                i += n
-            else:
-                i += 1
-    return annotations
+def find_missing_values_in_line(line_text, rule_data):
+    """
+    Returns a list of (key, value) pairs from rule_data that are not found in line_text,
+    using fuzzy and numeric matching.
+    """
+    # Split line into elements
+    clean_line = line_text.replace('\xa0', ' ')
+    line_elements = clean_line.split()
+    # Copy for destructive matching
+    working_line = line_elements.copy()
+    not_found = []
+
+    for k, v in rule_data.items():
+        found = False
+        for idx, elem in enumerate(working_line):
+            if fuzzy_in_line(v, [elem]):
+                found = True
+                del working_line[idx]  # Remove only the first match
+                break
+        if not found:
+            not_found.append((k, v))
+    return not_found
+
+def highlight_pdf_with_rules(uploaded_file, rules):
+    """
+    Highlights lines in a PDF where rule['text'] is found (line mode only).
+    If any value in rule['data'] is not found in the line, the highlight is red and missing values are listed.
+    """
+    doc = fitz.open(stream=uploaded_file.getvalue(), filetype="pdf")
+
+    for page in doc:
+        text_dict = page.get_text("dict")
+        for block in text_dict["blocks"]:
+            if "lines" not in block:
+                continue
+            for line in block["lines"]:
+                # Sort spans left-to-right and join their text
+                spans_sorted = sorted(line["spans"], key=lambda s: s["bbox"][0])
+                line_text = " ".join(span["text"] for span in spans_sorted).strip()
+
+                for rule in rules:
+                    if rule["text"] in line_text:
+                        color = rule.get("color", (0, 0.5, 0))  # Default green
+                        y0 = min(span["bbox"][1] for span in line["spans"])
+                        y1 = max(span["bbox"][3] for span in line["spans"])
+                        line_rect = fitz.Rect(0, y0, page.rect.width, y1)
+                        # Get text in the rectangle (for OCR-imperfect PDFs)
+                        line_text_in_rect = page.get_textbox(line_rect)
+                        content = "\n".join(f"{k}: {v}" for k, v in rule['data'].items())
+                        not_found = find_missing_values_in_line(line_text_in_rect, rule['data'])
+                        if not_found:
+                            content += f"\n\nSomething is wrong with this row, check the values:"
+                            color = (1, 0, 0)  # Red
+                            for item in not_found:
+                                content += f"\n- Might be {item[0]}: {item[1]}"
+
+                        annot = page.add_highlight_annot(line_rect)
+                        annot.set_colors(stroke=color)
+                        annot.set_info(content=content)
+                        annot.set_opacity(0.2)
+                        annot.update()
+                        break  # Only annotate the first matching rule per line
+
+    output_pdf = io.BytesIO()
+    doc.save(output_pdf)
+    doc.close()
+    output_pdf.seek(0)  # reset cursor
+    return output_pdf

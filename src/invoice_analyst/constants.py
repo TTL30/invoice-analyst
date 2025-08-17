@@ -1,5 +1,11 @@
 import streamlit as st
 
+MANDATORY_COLUMNS = [
+    "Reference",
+    "Prix Unitaire",
+    "Packaging",
+    "Quantité",
+    "Total"]
 
 CATEGORIES = [
     "Matières premières",
@@ -34,7 +40,7 @@ def structure_prompt(aggregated_ocr, example_row_cleaned):
         "- Invoice date (Date facture)\n"
         "- Supplier information (Information fournisseur: name and address, usually located at the top of the first page)\n"
         "- Number of packages (Nombre de colis)\n"
-        "- Total price (Total: total_ht, tva, total_ttc, usually located at the end or on the last page)\n\n"
+        "- Total price (Total: total_ht, tva, total_ttc, usually located at the end of the last page)\n\n"
         "2. Extract, clean, and reorder only the articles table information.\n"
         " For each article, map the columns as follows:\n"
         "- reference (should be a string or number)\n"

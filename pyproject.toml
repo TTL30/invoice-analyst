@@ -12,8 +12,7 @@ dependencies = [
     "streamlit ==1.48.1",
     "mistralai",
     "pdf2image",
-    "pytesseract",
-    "pdf-annotate",
+    "PyMuPDF",
 ]
 
 [project.optional-dependencies]
