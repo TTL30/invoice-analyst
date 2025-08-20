@@ -1,23 +1,20 @@
-import os
+import hashlib
 import io
-import json
 import difflib
 import base64
 import fitz
-import pytesseract
-from PyPDF2 import PdfReader
-import pandas as pd
+import pathlib
 from io import BytesIO
-from PIL import Image
 from mistralai import DocumentURLChunk, TextChunk
 from mistralai.models import OCRResponse
-from pdf2image import convert_from_bytes
+
 
 def pil_image_to_base64(img):
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     encoded = base64.b64encode(buffer.getvalue()).decode()
     return f"data:image/png;base64,{encoded}"
+
 
 def remove_redundant_lines_keep_first(ocr_pages, min_repeats=2):
     """
@@ -31,7 +28,9 @@ def remove_redundant_lines_keep_first(ocr_pages, min_repeats=2):
     line_counts = Counter(all_lines)
 
     # Find lines that are repeated on at least min_repeats pages
-    redundant_lines = {line for line, count in line_counts.items() if count >= min_repeats}
+    redundant_lines = {
+        line for line, count in line_counts.items() if count >= min_repeats
+    }
 
     # Track which redundant lines have already been kept
     kept_redundant = set()
@@ -51,20 +50,25 @@ def remove_redundant_lines_keep_first(ocr_pages, min_repeats=2):
 
     return "\n".join(cleaned_pages)
 
+
 def replace_images_in_markdown(markdown_str: str, images_dict: dict) -> str:
     for img_name, base64_str in images_dict.items():
-        markdown_str = markdown_str.replace(f"![{img_name}]({img_name})", f"![{img_name}]({base64_str})")
+        markdown_str = markdown_str.replace(
+            f"![{img_name}]({img_name})", f"![{img_name}]({base64_str})"
+        )
     return markdown_str
 
-def get_combined_markdown(ocr_response: OCRResponse) -> str:
-  markdowns: list[str] = []
-  for page in ocr_response.pages:
-    image_data = {}
-    for img in page.images:
-      image_data[img.id] = img.image_base64
-    markdowns.append(replace_images_in_markdown(page.markdown, image_data))
 
-  return "\n\n".join(markdowns)
+def get_combined_markdown(ocr_response: OCRResponse) -> str:
+    markdowns: list[str] = []
+    for page in ocr_response.pages:
+        image_data = {}
+        for img in page.images:
+            image_data[img.id] = img.image_base64
+        markdowns.append(replace_images_in_markdown(page.markdown, image_data))
+
+    return "\n\n".join(markdowns)
+
 
 def postprocess_markdown_remove_redundant(markdown: str, min_repeats: int = 2) -> str:
     """
@@ -80,7 +84,9 @@ def postprocess_markdown_remove_redundant(markdown: str, min_repeats: int = 2) -
     line_counts = Counter(all_lines)
 
     # Find lines that are repeated at least min_repeats times
-    redundant_lines = {line for line, count in line_counts.items() if count >= min_repeats}
+    redundant_lines = {
+        line for line, count in line_counts.items() if count >= min_repeats
+    }
 
     kept_redundant = set()
     cleaned = []
@@ -95,6 +101,7 @@ def postprocess_markdown_remove_redundant(markdown: str, min_repeats: int = 2) -
             cleaned.append(line)
     return "\n".join(cleaned)
 
+
 def extract_articles_ocr_from_pdf(pdf_file, client):
     uploaded_file = client.files.upload(
         file={
@@ -107,12 +114,14 @@ def extract_articles_ocr_from_pdf(pdf_file, client):
     signed_url = client.files.get_signed_url(file_id=uploaded_file.id, expiry=60)
 
     response = client.ocr.process(
-        document=DocumentURLChunk(document_url=signed_url.url), 
-        model="mistral-ocr-latest", include_image_base64=True
+        document=DocumentURLChunk(document_url=signed_url.url),
+        model="mistral-ocr-latest",
+        include_image_base64=True,
     )
 
     # Step 4: Collect results
     return get_combined_markdown(response)
+
 
 def structure_data_chat(client, prompt, response_format, model="pixtral-12b-latest"):
     response = client.chat.complete(
@@ -120,9 +129,9 @@ def structure_data_chat(client, prompt, response_format, model="pixtral-12b-late
         messages=[
             {
                 "role": "user",
-                "content": [TextChunk(
-                    text=prompt
-                    ),]
+                "content": [
+                    TextChunk(text=prompt),
+                ],
             }
         ],
         response_format=response_format,
@@ -141,6 +150,7 @@ def is_float_equal(val1, val2, tol=1e-2):
     except Exception:
         return False
 
+
 def fuzzy_in_line(value, line_elements, threshold=0.85):
     """Return True if value is fuzzily present in line_elements or numerically equal."""
     value_str = str(value).strip()
@@ -154,13 +164,14 @@ def fuzzy_in_line(value, line_elements, threshold=0.85):
             return True
     return False
 
+
 def find_missing_values_in_line(line_text, rule_data):
     """
     Returns a list of (key, value) pairs from rule_data that are not found in line_text,
     using fuzzy and numeric matching.
     """
     # Split line into elements
-    clean_line = line_text.replace('\xa0', ' ')
+    clean_line = line_text.replace("\xa0", " ")
     line_elements = clean_line.split()
     # Copy for destructive matching
     working_line = line_elements.copy()
@@ -176,6 +187,7 @@ def find_missing_values_in_line(line_text, rule_data):
         if not found:
             not_found.append((k, v))
     return not_found
+
 
 def highlight_pdf_with_rules(uploaded_file, rules):
     """
@@ -202,8 +214,12 @@ def highlight_pdf_with_rules(uploaded_file, rules):
                         line_rect = fitz.Rect(0, y0, page.rect.width, y1)
                         # Get text in the rectangle (for OCR-imperfect PDFs)
                         line_text_in_rect = page.get_textbox(line_rect)
-                        content = "\n".join(f"{k}: {v}" for k, v in rule['data'].items())
-                        not_found = find_missing_values_in_line(line_text_in_rect, rule['data'])
+                        content = "\n".join(
+                            f"{k}: {v}" for k, v in rule["data"].items()
+                        )
+                        not_found = find_missing_values_in_line(
+                            line_text_in_rect, rule["data"]
+                        )
                         if not_found:
                             content += f"\n\nSomething is wrong with this row, check the values:"
                             color = (1, 0, 0)  # Red
@@ -222,3 +238,37 @@ def highlight_pdf_with_rules(uploaded_file, rules):
     doc.close()
     output_pdf.seek(0)  # reset cursor
     return output_pdf
+
+
+def img_to_bytes(img_path):
+    img_bytes = pathlib.Path(img_path).read_bytes()
+    encoded = base64.b64encode(img_bytes).decode()
+    return encoded
+
+
+def displayPDF(uploaded_file):
+    bytes_data = uploaded_file.getvalue()
+    base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
+    return pdf_display
+
+
+def generate_invoice_unique_id(invoice_numero, fournisseur_id=None):
+    """Generate a unique hash id from invoice_numero (and optionally fournisseur_id)."""
+    if fournisseur_id is not None:
+        base = f"{fournisseur_id}_{invoice_numero}"
+    else:
+        base = str(invoice_numero)
+    return hashlib.sha256(base.encode()).hexdigest()[:12]  # 12 chars is usually enough
+
+
+def get_unique_id_from_invoice_numero(invoice_numero, fournisseur_id=None):
+    """Retrieve the unique id from invoice_numero (and optionally fournisseur_id)."""
+    return generate_invoice_unique_id(invoice_numero, fournisseur_id)
+
+
+def get_id_from_name(mapping: dict, name: str):
+    """Return ID from mapping by value, or None if not found."""
+    if not name:
+        return None
+    return next((k for k, v in mapping.items() if v == name), None)

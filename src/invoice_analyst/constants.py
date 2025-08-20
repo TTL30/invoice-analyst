@@ -1,11 +1,8 @@
 import streamlit as st
 
-MANDATORY_COLUMNS = [
-    "Reference",
-    "Prix Unitaire",
-    "Packaging",
-    "Quantité",
-    "Total"]
+SAVED_INVOICES_DIR = "saved_invoices"
+
+MANDATORY_COLUMNS = ["Reference", "Prix Unitaire", "Packaging", "Quantité", "Total"]
 
 CATEGORIES = [
     "Matières premières",
@@ -17,21 +14,22 @@ CATEGORIES = [
     "Produits surgelés",
     "Papeterie et caisse",
     "Transport / livraison",
-    "Décoration / présentation"
+    "Décoration / présentation",
 ]
 
 ARTICLES_COLUMNS_CONFIG = {
-                "Reference": st.column_config.TextColumn("Reference"),
-                "Désignation": st.column_config.TextColumn("Désignation"),
-                "Prix Unitaire": st.column_config.NumberColumn("Prix Unitaire", format="%.3f"),
-                "Packaging": st.column_config.NumberColumn("Packaging", format="%d"),
-                "Quantité": st.column_config.NumberColumn("Quantité", format="%d"),
-                "Total": st.column_config.NumberColumn("Total", format="%.3f"),
-                "Marque": st.column_config.TextColumn("Marque"),
-                "Catégorie": st.column_config.SelectboxColumn("Catégorie", options=CATEGORIES),
-            }
+    "Reference": st.column_config.TextColumn("Reference"),
+    "Désignation": st.column_config.TextColumn("Désignation"),
+    "Prix Unitaire": st.column_config.NumberColumn("Prix Unitaire", format="%.3f"),
+    "Packaging": st.column_config.NumberColumn("Packaging", format="%d"),
+    "Quantité": st.column_config.NumberColumn("Quantité", format="%d"),
+    "Total": st.column_config.NumberColumn("Total", format="%.3f"),
+    "Marque": st.column_config.TextColumn("Marque"),
+    "Catégorie": st.column_config.SelectboxColumn("Catégorie", options=CATEGORIES),
+}
 
-def structure_prompt(aggregated_ocr, example_row_cleaned):
+
+def structure_prompt(aggregated_ocr, example_row_cleaned, categories):
     return (
         f"This is the OCR result in markdown format:\n\n{aggregated_ocr}\n\n"
         "Your tasks are:\n"
@@ -50,17 +48,17 @@ def structure_prompt(aggregated_ocr, example_row_cleaned):
         "- prix unitaire (should be a float, price in euros)\n"
         "- total (should be a float, price in euros)\n"
         "- brand (check in the designation if you find an existing brand, otherwise use null)\n"
-        f"- category (attribute a category based on the designation, using only one of the following: {CATEGORIES})\n"
+        f"- category (attribute a category based on the designation, using only one of the following: {categories})\n"
         "For example, the first article row is mapped as:\n"
         f"{example_row_cleaned}\n\n"
         "Return a single valid JSON object with this structure:\n"
         "{\n"
-        "  \"Numéro de facture\": ...,\n"
-        "  \"Date facture\": ...,\n"
-        "  \"Information fournisseur\": {\"nom\": ..., \"adresse\": ...},\n"
-        "  \"Nombre de colis\": ...,\n"
-        "  \"Total\": {\"total_ht\": ..., \"tva\": ..., \"total_ttc\": ...},\n"
-        "  \"articles\": \"<cleaned markdown table of articles, without header>\"\n"
+        '  "Numéro de facture": ...,\n'
+        '  "Date facture": ...,\n'
+        '  "Information fournisseur": {"nom": ..., "adresse": ...},\n'
+        '  "Nombre de colis": ...,\n'
+        '  "Total": {"total_ht": ..., "tva": ..., "total_ttc": ...},\n'
+        '  "articles": "<cleaned markdown table of articles, without header>"\n'
         "}\n"
         "Do not include any extra commentary or explanation."
     )
