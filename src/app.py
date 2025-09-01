@@ -17,6 +17,7 @@ from invoice_analyst.page.analyse import run as analyst
 
 LOGO = "assets/logo1.png"
 
+
 def initialize_session():
     """Initialize Supabase client, cookies, and session state."""
     # Connect to Supabase
@@ -24,7 +25,7 @@ def initialize_session():
     key = st.secrets["supabase_key"]
     supabase = create_client(url, key)
     st.session_state["supabase"] = supabase
-    
+
     # Cookie manager
     cookies = EncryptedCookieManager(
         prefix="invoice_analyst",
@@ -84,10 +85,8 @@ def handle_authentication(email, password):
 def initialize_app_data():
     """Load application data from database."""
     supabase = st.session_state["supabase"]
-    
-    st.session_state["marques"] = (
-        supabase.table("marques").select("*").execute().data
-    )
+
+    st.session_state["marques"] = supabase.table("marques").select("*").execute().data
     st.session_state["fournisseurs"] = (
         supabase.table("fournisseurs").select("*").execute().data
     )
@@ -100,6 +99,8 @@ def initialize_session_variables():
     """Initialize session state variables."""
     if "uploaded_file" not in st.session_state:
         st.session_state["uploaded_file"] = None
+    if "extraction_done" not in st.session_state:
+        st.session_state["extraction_done"] = False
     if "pdf_name" not in st.session_state:
         st.session_state["pdf_name"] = None
     if "page" not in st.session_state:
@@ -111,7 +112,7 @@ def initialize_session_variables():
 def render_main_app():
     """Render the main application interface."""
     sidebar()
-    
+
     if st.session_state["page"] == "extract" and st.session_state.get("uploaded_file"):
         extraction_main_content()
     elif st.session_state["page"] == "analyst":
@@ -133,7 +134,7 @@ def main():
     """Main application entry point."""
     # Initialize session and page config
     initialize_session()
-    
+
     st.set_page_config(
         page_icon=LOGO,
         page_title="Gestionnaire de factures",
@@ -151,7 +152,7 @@ def main():
         page_title="Invoice Analyst",
         layout="wide",
     )
-    
+
     initialize_app_data()
     initialize_session_variables()
     render_main_app()
