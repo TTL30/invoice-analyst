@@ -1,3 +1,10 @@
+"""
+Utility Functions Module
+
+Provides core functionality for PDF processing, OCR, image handling,
+and data manipulation used throughout the invoice analyst application.
+"""
+
 import hashlib
 import io
 import difflib
@@ -5,20 +12,40 @@ import base64
 import fitz
 import pathlib
 from io import BytesIO
-from mistralai import DocumentURLChunk, TextChunk
+from typing import List, Dict, Any, Tuple, Optional, Union
+from PIL import Image
+from mistralai import DocumentURLChunk, TextChunk, Mistral
 from mistralai.models import OCRResponse
 
 
-def pil_image_to_base64(img):
+def pil_image_to_base64(img: Image.Image) -> str:
+    """
+    Convert PIL Image to base64 encoded string.
+    
+    Args:
+        img (PIL.Image): PIL Image object
+        
+    Returns:
+        str: Base64 encoded image string with data URI prefix
+    """
     buffer = BytesIO()
     img.save(buffer, format="PNG")
     encoded = base64.b64encode(buffer.getvalue()).decode()
     return f"data:image/png;base64,{encoded}"
 
 
-def remove_redundant_lines_keep_first(ocr_pages, min_repeats=2):
+def remove_redundant_lines_keep_first(ocr_pages: List[str], min_repeats: int = 2) -> str:
     """
-    Removes redundant lines that appear on multiple pages, but keeps their first occurrence (usually from the first page).
+    Remove redundant lines that appear on multiple pages, keeping only the first occurrence.
+    
+    This is useful for removing repeated headers and footers from multi-page documents.
+    
+    Args:
+        ocr_pages (list): List of page content strings
+        min_repeats (int, optional): Minimum occurrences to consider a line redundant. Defaults to 2.
+        
+    Returns:
+        str: Cleaned text with redundant lines removed
     """
     from collections import Counter
 
@@ -102,7 +129,17 @@ def postprocess_markdown_remove_redundant(markdown: str, min_repeats: int = 2) -
     return "\n".join(cleaned)
 
 
-def extract_articles_ocr_from_pdf(pdf_file, client):
+def extract_articles_ocr_from_pdf(pdf_file: Any, client: Mistral) -> str:
+    """
+    Extract text content from PDF using Mistral OCR API.
+    
+    Args:
+        pdf_file: Streamlit uploaded file object
+        client: Mistral API client instance
+        
+    Returns:
+        str: Combined markdown content from all pages
+    """
     uploaded_file = client.files.upload(
         file={
             "file_name": pdf_file.name,
@@ -123,7 +160,19 @@ def extract_articles_ocr_from_pdf(pdf_file, client):
     return get_combined_markdown(response)
 
 
-def structure_data_chat(client, prompt, response_format, model="pixtral-12b-latest"):
+def structure_data_chat(client: Mistral, prompt: str, response_format: Dict[str, Any], model: str = "pixtral-12b-latest") -> str:
+    """
+    Use Mistral chat API to structure extracted data according to a prompt.
+    
+    Args:
+        client: Mistral API client instance
+        prompt (str): Instruction prompt for data structuring
+        response_format (dict): Expected response format specification
+        model (str, optional): Model to use. Defaults to "pixtral-12b-latest".
+        
+    Returns:
+        str: Structured response from the model
+    """
     response = client.chat.complete(
         model=model,
         messages=[
@@ -141,7 +190,7 @@ def structure_data_chat(client, prompt, response_format, model="pixtral-12b-late
     return extracted_data
 
 
-def is_float_equal(val1, val2, tol=1e-2):
+def is_float_equal(val1: Union[str, float], val2: Union[str, float], tol: float = 1e-2) -> bool:
     """Check if two strings represent floats that are equal within a tolerance."""
     try:
         f1 = float(str(val1).replace(",", "."))
@@ -151,7 +200,7 @@ def is_float_equal(val1, val2, tol=1e-2):
         return False
 
 
-def fuzzy_in_line(value, line_elements, threshold=0.85):
+def fuzzy_in_line(value: Union[str, float], line_elements: List[str], threshold: float = 0.85) -> bool:
     """Return True if value is fuzzily present in line_elements or numerically equal."""
     value_str = str(value).strip()
     for elem in line_elements:
@@ -165,7 +214,7 @@ def fuzzy_in_line(value, line_elements, threshold=0.85):
     return False
 
 
-def find_missing_values_in_line(line_text, rule_data):
+def find_missing_values_in_line(line_text: str, rule_data: Dict[str, Any]) -> List[Tuple[str, Any]]:
     """
     Returns a list of (key, value) pairs from rule_data that are not found in line_text,
     using fuzzy and numeric matching.
@@ -189,10 +238,19 @@ def find_missing_values_in_line(line_text, rule_data):
     return not_found
 
 
-def highlight_pdf_with_rules(uploaded_file, rules):
+def highlight_pdf_with_rules(uploaded_file: Any, rules: List[Dict[str, Any]]) -> BytesIO:
     """
-    Highlights lines in a PDF where rule['text'] is found (line mode only).
-    If any value in rule['data'] is not found in the line, the highlight is red and missing values are listed.
+    Add annotations and highlights to PDF based on extraction rules.
+    
+    Lines containing rule['text'] are highlighted. If any values from rule['data']
+    are missing from the line, the highlight is red with missing values listed.
+    
+    Args:
+        uploaded_file: Streamlit uploaded PDF file
+        rules (list): List of rule dictionaries with 'text', 'data', and optional 'color'
+        
+    Returns:
+        io.BytesIO: Annotated PDF as BytesIO object
     """
     doc = fitz.open(stream=uploaded_file.getvalue(), filetype="pdf")
 
@@ -240,21 +298,30 @@ def highlight_pdf_with_rules(uploaded_file, rules):
     return output_pdf
 
 
-def img_to_bytes(img_path):
+def img_to_bytes(img_path: Union[str, pathlib.Path]) -> str:
     img_bytes = pathlib.Path(img_path).read_bytes()
     encoded = base64.b64encode(img_bytes).decode()
     return encoded
 
 
-def displayPDF(uploaded_file):
+def displayPDF(uploaded_file: Any) -> str:
     bytes_data = uploaded_file.getvalue()
     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
     return pdf_display
 
 
-def generate_invoice_unique_id(invoice_numero, fournisseur_id=None):
-    """Generate a unique hash id from invoice_numero (and optionally fournisseur_id)."""
+def generate_invoice_unique_id(invoice_numero: Union[str, int], fournisseur_id: Optional[Union[str, int]] = None) -> str:
+    """
+    Generate a unique hash ID from invoice number and optional supplier ID.
+    
+    Args:
+        invoice_numero (str): Invoice number
+        fournisseur_id (str, optional): Supplier ID for additional uniqueness
+        
+    Returns:
+        str: 12-character hash string
+    """
     if fournisseur_id is not None:
         base = f"{fournisseur_id}_{invoice_numero}"
     else:
@@ -262,12 +329,12 @@ def generate_invoice_unique_id(invoice_numero, fournisseur_id=None):
     return hashlib.sha256(base.encode()).hexdigest()[:12]  # 12 chars is usually enough
 
 
-def get_unique_id_from_invoice_numero(invoice_numero, fournisseur_id=None):
+def get_unique_id_from_invoice_numero(invoice_numero: Union[str, int], fournisseur_id: Optional[Union[str, int]] = None) -> str:
     """Retrieve the unique id from invoice_numero (and optionally fournisseur_id)."""
     return generate_invoice_unique_id(invoice_numero, fournisseur_id)
 
 
-def get_id_from_name(mapping: dict, name: str):
+def get_id_from_name(mapping: Dict[Any, str], name: str) -> Optional[Any]:
     """Return ID from mapping by value, or None if not found."""
     if not name:
         return None

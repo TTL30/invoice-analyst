@@ -1,10 +1,15 @@
+"""
+Application Constants
+
+Defines configuration constants, column configurations, and data structures
+used throughout the invoice analyst application.
+"""
+
+from typing import List, Dict, Any
 import streamlit as st
 
-SAVED_INVOICES_DIR = "saved_invoices"
-
-MANDATORY_COLUMNS = ["Reference", "Prix Unitaire", "Packaging", "Quantité", "Total"]
-
-CATEGORIES = [
+# Product categories
+CATEGORIES: List[str] = [
     "Matières premières",
     "Fruits, légumes, graines et fruits secs",
     "Boissons",
@@ -17,7 +22,8 @@ CATEGORIES = [
     "Décoration / présentation",
 ]
 
-ARTICLES_COLUMNS_CONFIG = {
+
+ARTICLES_COLUMNS_CONFIG: Dict[str, Any] = {
     "Reference": st.column_config.TextColumn("Reference"),
     "Désignation": st.column_config.TextColumn("Désignation"),
     "Prix Unitaire": st.column_config.NumberColumn("Prix Unitaire", format="%.3f"),
@@ -29,7 +35,20 @@ ARTICLES_COLUMNS_CONFIG = {
 }
 
 
-def structure_prompt(aggregated_ocr, example_row_cleaned, categories):
+def structure_prompt(
+    aggregated_ocr: str, example_row_cleaned: Dict[str, Any], categories: List[str]
+) -> str:
+    """
+    Generate a structured prompt for AI-based invoice data extraction.
+
+    Args:
+        aggregated_ocr (str): OCR-extracted text from the invoice
+        example_row_cleaned (dict): Example row data for extraction reference
+        categories (list): Available product categories
+
+    Returns:
+        str: Formatted prompt for the AI model
+    """
     return (
         f"This is the OCR result in markdown format:\n\n{aggregated_ocr}\n\n"
         "Your tasks are:\n"

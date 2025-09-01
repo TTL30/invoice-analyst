@@ -1,6 +1,6 @@
-
 *.pyc
 __pycache__/
 invoice_analyst.egg-info/
 .vscode/
-assets/
+.DS_Store
+.env

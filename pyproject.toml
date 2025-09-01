@@ -3,16 +3,17 @@ name = "invoice-analyst"
 version = "0.1.0"
 description = "A Python project for analyzing invoices."
 authors = [
-    { name="Your Name", email="your.email@example.com" }
+    { name="Tiago Teixeira", email="tiago.teixeira.ai@gmail.com" }
 ]
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    "streamlit ==1.48.1",
+    "streamlit==1.48.1",
     "mistralai",
     "pdf2image",
     "PyMuPDF",
+    "supabase==2.18.1",
 ]
 
 [project.optional-dependencies]
