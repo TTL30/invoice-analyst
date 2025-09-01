@@ -16,15 +16,16 @@ from typing import List, Dict, Any, Tuple, Optional, Union
 from PIL import Image
 from mistralai import DocumentURLChunk, TextChunk, Mistral
 from mistralai.models import OCRResponse
+import streamlit.components.v1 as components
 
 
 def pil_image_to_base64(img: Image.Image) -> str:
     """
     Convert PIL Image to base64 encoded string.
-    
+
     Args:
         img (PIL.Image): PIL Image object
-        
+
     Returns:
         str: Base64 encoded image string with data URI prefix
     """
@@ -34,16 +35,18 @@ def pil_image_to_base64(img: Image.Image) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
-def remove_redundant_lines_keep_first(ocr_pages: List[str], min_repeats: int = 2) -> str:
+def remove_redundant_lines_keep_first(
+    ocr_pages: List[str], min_repeats: int = 2
+) -> str:
     """
     Remove redundant lines that appear on multiple pages, keeping only the first occurrence.
-    
+
     This is useful for removing repeated headers and footers from multi-page documents.
-    
+
     Args:
         ocr_pages (list): List of page content strings
         min_repeats (int, optional): Minimum occurrences to consider a line redundant. Defaults to 2.
-        
+
     Returns:
         str: Cleaned text with redundant lines removed
     """
@@ -132,11 +135,11 @@ def postprocess_markdown_remove_redundant(markdown: str, min_repeats: int = 2) -
 def extract_articles_ocr_from_pdf(pdf_file: Any, client: Mistral) -> str:
     """
     Extract text content from PDF using Mistral OCR API.
-    
+
     Args:
         pdf_file: Streamlit uploaded file object
         client: Mistral API client instance
-        
+
     Returns:
         str: Combined markdown content from all pages
     """
@@ -160,16 +163,21 @@ def extract_articles_ocr_from_pdf(pdf_file: Any, client: Mistral) -> str:
     return get_combined_markdown(response)
 
 
-def structure_data_chat(client: Mistral, prompt: str, response_format: Dict[str, Any], model: str = "pixtral-12b-latest") -> str:
+def structure_data_chat(
+    client: Mistral,
+    prompt: str,
+    response_format: Dict[str, Any],
+    model: str = "pixtral-12b-latest",
+) -> str:
     """
     Use Mistral chat API to structure extracted data according to a prompt.
-    
+
     Args:
         client: Mistral API client instance
         prompt (str): Instruction prompt for data structuring
         response_format (dict): Expected response format specification
         model (str, optional): Model to use. Defaults to "pixtral-12b-latest".
-        
+
     Returns:
         str: Structured response from the model
     """
@@ -190,7 +198,9 @@ def structure_data_chat(client: Mistral, prompt: str, response_format: Dict[str,
     return extracted_data
 
 
-def is_float_equal(val1: Union[str, float], val2: Union[str, float], tol: float = 1e-2) -> bool:
+def is_float_equal(
+    val1: Union[str, float], val2: Union[str, float], tol: float = 1e-2
+) -> bool:
     """Check if two strings represent floats that are equal within a tolerance."""
     try:
         f1 = float(str(val1).replace(",", "."))
@@ -200,7 +210,9 @@ def is_float_equal(val1: Union[str, float], val2: Union[str, float], tol: float 
         return False
 
 
-def fuzzy_in_line(value: Union[str, float], line_elements: List[str], threshold: float = 0.85) -> bool:
+def fuzzy_in_line(
+    value: Union[str, float], line_elements: List[str], threshold: float = 0.85
+) -> bool:
     """Return True if value is fuzzily present in line_elements or numerically equal."""
     value_str = str(value).strip()
     for elem in line_elements:
@@ -214,7 +226,9 @@ def fuzzy_in_line(value: Union[str, float], line_elements: List[str], threshold:
     return False
 
 
-def find_missing_values_in_line(line_text: str, rule_data: Dict[str, Any]) -> List[Tuple[str, Any]]:
+def find_missing_values_in_line(
+    line_text: str, rule_data: Dict[str, Any]
+) -> List[Tuple[str, Any]]:
     """
     Returns a list of (key, value) pairs from rule_data that are not found in line_text,
     using fuzzy and numeric matching.
@@ -238,17 +252,19 @@ def find_missing_values_in_line(line_text: str, rule_data: Dict[str, Any]) -> Li
     return not_found
 
 
-def highlight_pdf_with_rules(uploaded_file: Any, rules: List[Dict[str, Any]]) -> BytesIO:
+def highlight_pdf_with_rules(
+    uploaded_file: Any, rules: List[Dict[str, Any]]
+) -> BytesIO:
     """
     Add annotations and highlights to PDF based on extraction rules.
-    
+
     Lines containing rule['text'] are highlighted. If any values from rule['data']
     are missing from the line, the highlight is red with missing values listed.
-    
+
     Args:
         uploaded_file: Streamlit uploaded PDF file
         rules (list): List of rule dictionaries with 'text', 'data', and optional 'color'
-        
+
     Returns:
         io.BytesIO: Annotated PDF as BytesIO object
     """
@@ -304,21 +320,33 @@ def img_to_bytes(img_path: Union[str, pathlib.Path]) -> str:
     return encoded
 
 
-def displayPDF(uploaded_file: Any) -> str:
+def displayPDF__(uploaded_file: Any) -> str:
     bytes_data = uploaded_file.getvalue()
     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
     return pdf_display
 
 
-def generate_invoice_unique_id(invoice_numero: Union[str, int], fournisseur_id: Optional[Union[str, int]] = None) -> str:
+def displayPDF(uploaded_file: Any) -> str:
+    bytes_data = uploaded_file.getvalue()
+    base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
+    pdf_display = f"""
+        <embed src="data:application/pdf;base64,{base64_pdf}" 
+               width="100%" height="800" type="application/pdf">
+    """
+    return pdf_display
+
+
+def generate_invoice_unique_id(
+    invoice_numero: Union[str, int], fournisseur_id: Optional[Union[str, int]] = None
+) -> str:
     """
     Generate a unique hash ID from invoice number and optional supplier ID.
-    
+
     Args:
         invoice_numero (str): Invoice number
         fournisseur_id (str, optional): Supplier ID for additional uniqueness
-        
+
     Returns:
         str: 12-character hash string
     """
@@ -329,7 +357,9 @@ def generate_invoice_unique_id(invoice_numero: Union[str, int], fournisseur_id: 
     return hashlib.sha256(base.encode()).hexdigest()[:12]  # 12 chars is usually enough
 
 
-def get_unique_id_from_invoice_numero(invoice_numero: Union[str, int], fournisseur_id: Optional[Union[str, int]] = None) -> str:
+def get_unique_id_from_invoice_numero(
+    invoice_numero: Union[str, int], fournisseur_id: Optional[Union[str, int]] = None
+) -> str:
     """Retrieve the unique id from invoice_numero (and optionally fournisseur_id)."""
     return generate_invoice_unique_id(invoice_numero, fournisseur_id)
 
