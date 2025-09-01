@@ -4,3 +4,4 @@ pdf2image
 PyMuPDF
 streamlit==1.48.1
 streamlit-cookies-manager==0.2.0
+plotly==6.3.0
