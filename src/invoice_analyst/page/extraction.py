@@ -494,8 +494,14 @@ def main_content() -> None:
     with extraction highlights if processing is complete.
     """
     st.markdown(
-        displayPDF(
-            "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/public/test/dummy_invoice.pdf"
-        ),
+        """
+    <embed src="https://thomasmorestudies.org/wp-content/uploads/2020/09/Richard.pdf" width="800" height="800">
+    """,
         unsafe_allow_html=True,
     )
+    # st.markdown(
+    #     displayPDF(
+    #         "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/public/test/dummy_invoice.pdf"
+    #     ),
+    #     unsafe_allow_html=True,
+    # )
