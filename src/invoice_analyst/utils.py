@@ -328,8 +328,25 @@ def displayPDF__(uploaded_file: Any) -> str:
 
 
 def displayPDF(pdf_url: str) -> str:
-    gviewer = f"https://docs.google.com/gview?url={pdf_url}&embedded=true"
-    return f'<iframe src="{gviewer}" width="100%" height="800"></iframe>'
+    pdf_display = f"""
+        <iframe src="{pdf_url}" width="100%" height="800" type="application/pdf"></iframe>
+    """
+    return pdf_display
+
+
+def displayPDF(pdf_url: str) -> str:
+    import requests
+
+    r = requests.get(pdf_url)
+    r.raise_for_status()
+    base64_pdf = base64.b64encode(r.content).decode("utf-8")
+
+    return f"""
+    <object data="data:application/pdf;base64,{base64_pdf}"
+            type="application/pdf" width="100%" height="800">
+        <p>PDF cannot be displayed. <a href="{pdf_url}" target="_blank">Download here</a></p>
+    </object>
+    """
 
 
 def displayPDF__(uploaded_file: Any) -> str:
