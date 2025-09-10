@@ -328,10 +328,8 @@ def displayPDF__(uploaded_file: Any) -> str:
 
 
 def displayPDF(pdf_url: str) -> str:
-    pdf_display = f"""
-        <iframe src="{pdf_url}" width="100%" height="800" type="application/pdf"></iframe>
-    """
-    return pdf_display
+    gviewer = f"https://docs.google.com/gview?url={pdf_url}&embedded=true"
+    return f'<iframe src="{gviewer}" width="100%" height="800"></iframe>'
 
 
 def displayPDF__(uploaded_file: Any) -> str:
