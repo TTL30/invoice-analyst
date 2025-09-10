@@ -493,15 +493,10 @@ def main_content() -> None:
     Displays either the original uploaded PDF or the annotated version
     with extraction highlights if processing is complete.
     """
+
     st.markdown(
-        """
-    <embed src="https://thomasmorestudies.org/wp-content/uploads/2020/09/Richard.pdf" width="800" height="800">
-    """,
+        displayPDF(
+            "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/public/test/dummy_invoice.pdf"
+        ),
         unsafe_allow_html=True,
     )
-    # st.markdown(
-    #     displayPDF(
-    #         "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/public/test/dummy_invoice.pdf"
-    #     ),
-    #     unsafe_allow_html=True,
-    # )
