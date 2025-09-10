@@ -24,7 +24,7 @@ from invoice_analyst.utils import (
 def autofill_rows(columns: List[str]) -> None:
     """
     Autofill product information when a reference already exists in the database.
-    
+
     Args:
         columns: List of column names for the DataFrame
     """
@@ -77,14 +77,16 @@ def autofill_rows(columns: List[str]) -> None:
         )
 
 
-def extract_invoice(uploaded_file: Any, confirmation_df: pd.DataFrame) -> Tuple[Optional[Dict[str, Any]], Optional[pd.DataFrame], Optional[Any]]:
+def extract_invoice(
+    uploaded_file: Any, confirmation_df: pd.DataFrame
+) -> Tuple[Optional[Dict[str, Any]], Optional[pd.DataFrame], Optional[Any]]:
     """
     Extract structured data from a PDF invoice using OCR and LLM processing.
-    
+
     Args:
         uploaded_file: Streamlit uploaded PDF file
         confirmation_df: DataFrame with confirmation data for extraction optimization
-        
+
     Returns:
         tuple: (structured_data, data_articles, annotated_pdf) or (None, None, None) on error
     """
@@ -145,17 +147,19 @@ def extract_invoice(uploaded_file: Any, confirmation_df: pd.DataFrame) -> Tuple[
     return structured_data, data_articles, annotated_pdf
 
 
-def save_invoice_supabase_storage(uploaded_file: Any, invoice_info: Dict[str, Any], articles_df: pd.DataFrame) -> None:
+def save_invoice_supabase_storage(
+    uploaded_file: Any, invoice_info: Dict[str, Any], articles_df: pd.DataFrame
+) -> None:
     """
     Save complete invoice data to Supabase database and storage.
-    
+
     This function handles:
     - Creating/updating supplier information
     - Creating/updating invoice records
     - Uploading PDF to Supabase Storage
     - Creating/updating product records
     - Creating invoice line items
-    
+
     Args:
         uploaded_file: The PDF file to be stored
         invoice_info (dict): Invoice metadata (supplier, number, date, etc.)
@@ -322,7 +326,7 @@ def save_invoice_supabase_storage(uploaded_file: Any, invoice_info: Dict[str, An
 def sidebar() -> None:
     """
     Render sidebar interface for invoice extraction workflow.
-    
+
     This function manages the complete extraction process:
     1. File upload
     2. First article confirmation for extraction optimization
@@ -485,15 +489,13 @@ def sidebar() -> None:
 def main_content() -> None:
     """
     Render the main content area showing the PDF viewer.
-    
+
     Displays either the original uploaded PDF or the annotated version
     with extraction highlights if processing is complete.
     """
     st.markdown(
         displayPDF(
-            st.session_state["annotated_pdf"]
-            if st.session_state["extraction_done"]
-            else st.session_state["uploaded_file"]
+            "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/sign/invoices/4679c856-f3a7-48f3-808a-a84981a857b3/8_Facture_26201376_082312.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YzJjNWNkNC03ODVjLTQyM2ItOTZiOS0wYTlmYmUzZDNiM2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbnZvaWNlcy80Njc5Yzg1Ni1mM2E3LTQ4ZjMtODA4YS1hODQ5ODFhODU3YjMvOF9GYWN0dXJlXzI2MjAxMzc2XzA4MjMxMi5wZGYiLCJpYXQiOjE3NTc0OTE3MzAsImV4cCI6MTc1ODA5NjUzMH0.5WVda32_ftMebKHotuMHYHz08EHBZbirvUSsHSCpzEA"
         ),
         unsafe_allow_html=True,
     )

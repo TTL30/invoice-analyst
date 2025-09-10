@@ -320,10 +320,17 @@ def img_to_bytes(img_path: Union[str, pathlib.Path]) -> str:
     return encoded
 
 
-def displayPDF(uploaded_file: Any) -> str:
+def displayPDF__(uploaded_file: Any) -> str:
     bytes_data = uploaded_file.getvalue()
     base64_pdf = base64.b64encode(bytes_data).decode("utf-8")
     pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
+    return pdf_display
+
+
+def displayPDF(pdf_url: str) -> str:
+    pdf_display = f"""
+        <iframe src="{pdf_url}" width="100%" height="800" type="application/pdf"></iframe>
+    """
     return pdf_display
 
 
