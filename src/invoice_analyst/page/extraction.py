@@ -496,7 +496,7 @@ def main_content() -> None:
 
     st.markdown(
         displayPDF(
-            "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/public/test/dummy_invoice.pdf"
+            "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/sign/invoices/4679c856-f3a7-48f3-808a-a84981a857b3/9_metro.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YzJjNWNkNC03ODVjLTQyM2ItOTZiOS0wYTlmYmUzZDNiM2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbnZvaWNlcy80Njc5Yzg1Ni1mM2E3LTQ4ZjMtODA4YS1hODQ5ODFhODU3YjMvOV9tZXRyby5wZGYiLCJpYXQiOjE3NTc0OTM2NDIsImV4cCI6MTc1ODA5ODQ0Mn0.elBqfpX_AhvmuWmUC4kjpfg6cJdhuDzMPT6wuIswiGI"
         ),
         unsafe_allow_html=True,
     )
