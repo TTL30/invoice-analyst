@@ -398,7 +398,6 @@ def store_pdf_supabase(
         path=file_name,
         file=uploaded_file.getvalue(),
         file_options={"content_type": "application/pdf"},
-        upsert=False,  # Don't overwrite
     )
     url_data = supabase.storage.from_(bucket).create_signed_url(file_name, 60 * 60)
     url = url_data.get("signedURL") or url_data.get("url")
