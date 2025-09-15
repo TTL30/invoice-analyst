@@ -376,3 +376,20 @@ def get_id_from_name(mapping: Dict[Any, str], name: str) -> Optional[Any]:
     if not name:
         return None
     return next((k for k, v in mapping.items() if v == name), None)
+
+
+def store_pdf_supabase(
+    supabase, bucket: str, uploaded_file: Any, file_name: str
+) -> str:
+    """Upload PDF to Supabase storage and return public URL."""
+    supabase.storage.from_(bucket).upload(
+        path=file_name,
+        file=uploaded_file.getvalue(),
+        file_options={
+            "content_type": "application/pdf",
+            "upsert": "true",
+        },
+    )
+    url_data = supabase.storage.from_(bucket).create_signed_url(f"{file_name}", 60 * 60)
+    url = url_data.get("signedURL") or url_data.get("url")
+    return url

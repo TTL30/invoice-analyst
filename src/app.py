@@ -77,6 +77,14 @@ def handle_authentication(email, password):
             st.session_state["cookies"].save()
 
             st.success("Connexion réussie!")
+            # Clean up temporary files if user is not logged in
+            files = st.session_state["supabase"].storage.from_("invoices").list("temp/")
+            file_paths = [f"temp/{file['name']}" for file in files if file.get("name")]
+            if file_paths:
+                st.session_state["supabase"].storage.from_("invoices").remove(
+                    file_paths
+                )
+
             st.rerun()
         except Exception as e:
             st.error(f"Connexion impossible: {str(e)}")

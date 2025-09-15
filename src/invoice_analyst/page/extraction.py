@@ -18,6 +18,7 @@ from invoice_analyst.utils import (
     postprocess_markdown_remove_redundant,
     structure_data_chat,
     highlight_pdf_with_rules,
+    store_pdf_supabase,
 )
 
 
@@ -227,12 +228,7 @@ def save_invoice_supabase_storage(
     bucket_name = "invoices"
     invoice_name = f"{invoice_id}_{invoice_info['filename']}"
     object_name = f"{user_id}/{invoice_name}"
-
-    supabase.storage.from_(bucket_name).upload(
-        path=object_name,
-        file=uploaded_file.getvalue(),
-        file_options={"content-type": "application/pdf"},
-    )
+    url = store_pdf_supabase(supabase, bucket_name, uploaded_file, object_name)
 
     # --- Save articles ---
     for _, row in articles_df.iterrows():
@@ -351,9 +347,13 @@ def sidebar() -> None:
 
     # === Step 1: Upload & Confirm first article ===
     if uploaded_file and not st.session_state.get("extraction_done", False):
-        st.session_state.update(
-            {"uploaded_file": uploaded_file, "pdf_name": uploaded_file.name}
+        url = store_pdf_supabase(
+            st.session_state["supabase"],
+            "invoices",
+            uploaded_file,
+            f"temp/{uploaded_file.name}",
         )
+        st.session_state.update({"uploaded_file": url, "pdf_name": uploaded_file.name})
 
         st.divider()
         st.text(
@@ -387,12 +387,18 @@ def sidebar() -> None:
                 structured_data, data_articles, annotated_pdf = extract_invoice(
                     uploaded_file, confirmation_df
                 )
+                url = store_pdf_supabase(
+                    st.session_state["supabase"],
+                    "invoices",
+                    annotated_pdf,
+                    f"temp/annotated_{uploaded_file.name}",
+                )
                 if structured_data:
                     st.session_state.update(
                         {
                             "structured_data": structured_data,
                             "data_articles": data_articles,
-                            "annotated_pdf": annotated_pdf,
+                            "annotated_pdf": url,
                             "extraction_done": True,
                         }
                     )
@@ -469,7 +475,7 @@ def sidebar() -> None:
         if st.button("Enregistrer les données", type="primary"):
             with st.spinner("Enregistrement en cours..."):
                 save_invoice_supabase_storage(
-                    st.session_state["uploaded_file"],
+                    uploaded_file,
                     {
                         "fournisseur_nom": fournisseur_nom,
                         "adresse": fournisseur_adresse,
@@ -493,10 +499,11 @@ def main_content() -> None:
     Displays either the original uploaded PDF or the annotated version
     with extraction highlights if processing is complete.
     """
-
     st.markdown(
         displayPDF(
-            "https://oglvvptgegpwugiuclyx.supabase.co/storage/v1/object/sign/invoices/4679c856-f3a7-48f3-808a-a84981a857b3/9_metro.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81YzJjNWNkNC03ODVjLTQyM2ItOTZiOS0wYTlmYmUzZDNiM2MiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJpbnZvaWNlcy80Njc5Yzg1Ni1mM2E3LTQ4ZjMtODA4YS1hODQ5ODFhODU3YjMvOV9tZXRyby5wZGYiLCJpYXQiOjE3NTc0OTM2NDIsImV4cCI6MTc1ODA5ODQ0Mn0.elBqfpX_AhvmuWmUC4kjpfg6cJdhuDzMPT6wuIswiGI"
+            st.session_state["annotated_pdf"]
+            if st.session_state["extraction_done"]
+            else st.session_state["uploaded_file"]
         ),
         unsafe_allow_html=True,
     )
