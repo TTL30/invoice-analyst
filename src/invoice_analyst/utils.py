@@ -381,15 +381,25 @@ def get_id_from_name(mapping: Dict[Any, str], name: str) -> Optional[Any]:
 def store_pdf_supabase(
     supabase, bucket: str, uploaded_file: Any, file_name: str
 ) -> str:
-    """Upload PDF to Supabase storage and return public URL."""
+    """Upload PDF to Supabase storage and return public URL. If file exists, do nothing."""
+    # List files in the target folder
+    folder = "/".join(file_name.split("/")[:-1])
+    files = supabase.storage.from_(bucket).list(folder)
+    file_names = [f["name"] for f in files if "name" in f]
+    base_name = file_name.split("/")[-1]
+    if base_name in file_names:
+        # File already exists, just return the signed URL
+        url_data = supabase.storage.from_(bucket).create_signed_url(file_name, 60 * 60)
+        url = url_data.get("signedURL") or url_data.get("url")
+        return url
+
+    # If not exists, upload
     supabase.storage.from_(bucket).upload(
         path=file_name,
         file=uploaded_file.getvalue(),
-        file_options={
-            "content_type": "application/pdf",
-            "upsert": "true",
-        },
+        file_options={"content_type": "application/pdf"},
+        upsert=False,  # Don't overwrite
     )
-    url_data = supabase.storage.from_(bucket).create_signed_url(f"{file_name}", 60 * 60)
+    url_data = supabase.storage.from_(bucket).create_signed_url(file_name, 60 * 60)
     url = url_data.get("signedURL") or url_data.get("url")
     return url
