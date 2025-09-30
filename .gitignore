@@ -4,3 +4,19 @@ invoice_analyst.egg-info/
 .vscode/
 .DS_Store
 .env
+apps/web/node_modules/
+apps/web/.next/
+apps/web/dist/
+apps/web/.env.local
+
+# Virtual environment
+.venv/
+
+# Test files and temporary data
+*.pdf
+temp.pdf
+.pytest_cache/
+.streamlit/
+invoices/
+assets/
+legacy/

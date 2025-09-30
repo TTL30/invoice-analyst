@@ -1,7 +1,7 @@
 [project]
 name = "invoice-analyst"
-version = "0.1.0"
-description = "A Python project for analyzing invoices."
+version = "0.2.0"
+description = "Backend and shared services for the Invoice Analyst platform."
 authors = [
     { name="Tiago Teixeira", email="tiago.teixeira.ai@gmail.com" }
 ]
@@ -9,11 +9,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
-    "streamlit==1.48.1",
-    "mistralai",
-    "pdf2image",
-    "PyMuPDF",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "python-multipart>=0.0.9",
+    "python-dotenv>=1.0.0",
     "supabase==2.18.1",
+    "mistralai",
+    "PyMuPDF",
+    "pydantic>=2.3",
 ]
 
 [project.optional-dependencies]
@@ -27,3 +30,21 @@ dev = [
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 100
+target-version = ['py311', 'py312', 'py313']
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | __pycache__
+  | \.pytest_cache
+  | apps
+)/
+'''
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+exclude = [".git", ".venv", "__pycache__", "apps"]
