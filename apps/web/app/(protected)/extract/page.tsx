@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
-import { ExtractionSteps } from "../../../components/extraction/ExtractionSteps";
+import { ExtractionWorkspace } from "../../../components/extraction/ExtractionWorkspace";
 import { Database } from "../../../types/database";
 
 export default async function ExtractPage() {
@@ -37,7 +37,7 @@ export default async function ExtractPage() {
   ]);
 
   return (
-    <ExtractionSteps
+    <ExtractionWorkspace
       categories={(categoriesData.data ?? []).map((item) => item.nom)}
       marques={(marquesData.data ?? []).map((item) => item.nom)}
       fournisseurs={(fournisseursData.data ?? []).map((item) => item.nom)}

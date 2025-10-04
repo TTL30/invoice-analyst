@@ -138,7 +138,5 @@ async def download_invoices(
     return StreamingResponse(
         buffer,
         media_type="application/zip",
-        headers={
-            "Content-Disposition": 'attachment; filename="factures.zip"'
-        },
+        headers={"Content-Disposition": 'attachment; filename="factures.zip"'},
     )

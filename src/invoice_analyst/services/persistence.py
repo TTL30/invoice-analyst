@@ -10,6 +10,40 @@ from invoice_analyst.domain.models import Article, InvoiceSavePayload
 from invoice_analyst.services.storage import StoredFile, store_pdf
 
 
+def _merge_duplicate_articles(articles: list[Article]) -> list[Article]:
+    """Merge articles with the same product identifier (reference or designation).
+
+    Numeric fields (quantity, packaging, total) are summed.
+    Non-numeric fields use the first non-None value.
+    """
+    article_map: dict[str, Article] = {}
+
+    for article in articles:
+        key = article.reference or article.designation
+        if not key:
+            continue
+
+        if key not in article_map:
+            article_map[key] = article.model_copy(deep=True)
+        else:
+            existing = article_map[key]
+            # Sum numeric fields
+            if article.quantity is not None:
+                existing.quantity = (existing.quantity or 0) + article.quantity
+            if article.packaging is not None:
+                existing.packaging = (existing.packaging or 0) + article.packaging
+            if article.total is not None:
+                existing.total = (existing.total or 0) + article.total
+            # Keep first non-None for other fields
+            existing.unit = existing.unit or article.unit
+            existing.unit_price = existing.unit_price or article.unit_price
+            existing.poids_volume = existing.poids_volume or article.poids_volume
+            existing.brand = existing.brand or article.brand
+            existing.category = existing.category or article.category
+
+    return list(article_map.values())
+
+
 def _get_single_id(query_result) -> Optional[int]:
     data = getattr(query_result, "data", None) or []
     if not data:
@@ -21,11 +55,7 @@ def _get_or_create_supplier(
     *, supabase: Client, user_id: str, name: str, address: str | None
 ) -> int:
     result = (
-        supabase.table("fournisseurs")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("nom", name)
-        .execute()
+        supabase.table("fournisseurs").select("id").eq("user_id", user_id).eq("nom", name).execute()
     )
     supplier_id = _get_single_id(result)
     if supplier_id:
@@ -52,41 +82,25 @@ def _get_or_create_category(
     if not name:
         return None
     result = (
-        supabase.table("categories")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("nom", name)
-        .execute()
+        supabase.table("categories").select("id").eq("user_id", user_id).eq("nom", name).execute()
     )
     category_id = _get_single_id(result)
     if category_id:
         return category_id
 
-    response = (
-        supabase.table("categories").insert({"user_id": user_id, "nom": name}).execute()
-    )
+    response = supabase.table("categories").insert({"user_id": user_id, "nom": name}).execute()
     return _get_single_id(response)
 
 
-def _get_or_create_brand(
-    *, supabase: Client, user_id: str, name: Optional[str]
-) -> Optional[int]:
+def _get_or_create_brand(*, supabase: Client, user_id: str, name: Optional[str]) -> Optional[int]:
     if not name:
         return None
-    result = (
-        supabase.table("marques")
-        .select("id")
-        .eq("user_id", user_id)
-        .eq("nom", name)
-        .execute()
-    )
+    result = supabase.table("marques").select("id").eq("user_id", user_id).eq("nom", name).execute()
     brand_id = _get_single_id(result)
     if brand_id:
         return brand_id
 
-    response = (
-        supabase.table("marques").insert({"user_id": user_id, "nom": name}).execute()
-    )
+    response = supabase.table("marques").insert({"user_id": user_id, "nom": name}).execute()
     return _get_single_id(response)
 
 
@@ -170,6 +184,7 @@ def _upsert_invoice(
         "total_ht": payload.totals.total_ht,
         "tva_amount": payload.totals.tva,
         "total_ttc": payload.totals.total_ttc,
+        "nombre_colis": payload.package_count,
     }
 
     if invoice_id is None:
@@ -217,7 +232,10 @@ def persist_invoice(
     # remove existing lines for id to avoid duplicates
     supabase.table("lignes_facture").delete().eq("facture_id", invoice_id).execute()
 
-    for article in payload.articles:
+    # Merge duplicate articles before persisting
+    merged_articles = _merge_duplicate_articles(payload.articles)
+
+    for article in merged_articles:
         category_id = _get_or_create_category(
             supabase=supabase,
             user_id=payload.user_id,
@@ -243,9 +261,11 @@ def persist_invoice(
                 "facture_id": invoice_id,
                 "produit_id": product_id,
                 "prix_unitaire": article.unit_price,
-                "collisage": int(article.packaging) if article.packaging is not None else None,
-                "quantite": int(article.quantity) if article.quantity is not None else None,
+                "collisage": article.packaging,
+                "quantite": article.quantity,
                 "montant": article.total,
+                "unite": article.unit,
+                "poids_volume": article.poids_volume,
             }
         ).execute()
 

@@ -1,0 +1,54 @@
+supplier: "LEFORT"
+
+identifiers:
+  - "LEFORT"
+
+table:
+  start_anchor: "ARTICLE"
+  header_rows: 1
+  header:
+    - "ARTICLE"
+    - "DESIGNATION"
+    - "COND"
+    - "QUANTITE"
+    - "P.U. BRUT"
+    - "P.U. NET"
+    - "MONTANT"
+    - "T"
+    - "V"
+
+  excluded_columns:
+    - "T"
+    - "V"
+
+  footer_keywords:
+    - "RELEVE"
+    - "CATEGORIES DE MARCHANDISES"
+    - "VENTILATION / CODE TVA"
+    - "DATE FACTURE"
+    - "Mt TTC"
+    - "CUMUL FACTURES"
+    - "Nombre de Colis"
+    - "Client :"
+    - "Facture :"
+    - "Solde à payer"
+
+  summary_patterns:
+    - "--->"
+    - "***"
+    - "<<"
+    - "(COMMANDE"
+    - "**"
+
+  detail_patterns:
+    - "Qte="
+    - "DLC="
+    - "DDM="
+    - "Lot Frs="
+
+  skip_chars:
+    - "*"
+
+  use_data_driven_boundaries: true
+  min_aligned_blocks: 3
+  alignment_threshold: 0.4

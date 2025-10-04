@@ -1,0 +1,1 @@
+/Users/tiagoteixeira/code/side/invoice-analyst/AGENTS.md

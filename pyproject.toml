@@ -13,10 +13,11 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "python-multipart>=0.0.9",
     "python-dotenv>=1.0.0",
-    "supabase==2.18.1",
-    "mistralai",
-    "PyMuPDF",
+    "supabase>=2.18.0",
+    "mistralai>=1.0.0",
+    "PyMuPDF>=1.24.0",
     "pydantic>=2.3",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

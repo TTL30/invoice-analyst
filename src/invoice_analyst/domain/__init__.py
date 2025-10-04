@@ -1,6 +1,6 @@
 """Domain exports."""
 
-from .constants import ARTICLES_COLUMN_KEYS, ARTICLES_COLUMNS, CATEGORIES
+from .constants import ARTICLES_COLUMN_KEYS, ARTICLES_COLUMNS
 from .models import (
     Article,
     BulkDownloadRequest,
@@ -15,7 +15,6 @@ from .models import (
 __all__ = [
     "ARTICLES_COLUMN_KEYS",
     "ARTICLES_COLUMNS",
-    "CATEGORIES",
     "Article",
     "BulkDownloadRequest",
     "ExtractionRequest",

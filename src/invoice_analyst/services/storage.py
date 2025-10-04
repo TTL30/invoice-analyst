@@ -39,16 +39,12 @@ def store_pdf(
             file_options={"content_type": content_type},
         )
 
-    url_data = supabase.storage.from_(bucket).create_signed_url(
-        file_path, signed_url_ttl
-    )
+    url_data = supabase.storage.from_(bucket).create_signed_url(file_path, signed_url_ttl)
     url = url_data.get("signedURL") or url_data.get("url")
     if not url:
         raise RuntimeError(f"Unable to create signed URL for {file_path}")
     if not url.lower().startswith(("http://", "https://")):
-        base_url = getattr(supabase, "storage_url", None) or getattr(
-            supabase.storage, "url", None
-        )
+        base_url = getattr(supabase, "storage_url", None) or getattr(supabase.storage, "url", None)
         if base_url:
             url = urljoin(base_url if base_url.endswith("/") else f"{base_url}/", url.lstrip("/"))
         else:

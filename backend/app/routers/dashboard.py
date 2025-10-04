@@ -19,7 +19,9 @@ from ..schemas.dashboard import (
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
-@router.post("/global", response_model=GlobalDashboardResponse, summary="Get global dashboard analytics")
+@router.post(
+    "/global", response_model=GlobalDashboardResponse, summary="Get global dashboard analytics"
+)
 async def get_global_dashboard(
     payload: GlobalDashboardRequest,
     supabase=Depends(get_supabase),
@@ -60,13 +62,17 @@ async def get_global_dashboard(
     total_ttc = sum(inv.get("total_ttc", 0) or 0 for inv in invoices)
     invoice_count = len(invoices)
     avg_invoice_amount = total_ttc / invoice_count if invoice_count > 0 else 0
-    active_suppliers = len(set(inv.get("fournisseur_id") for inv in invoices if inv.get("fournisseur_id")))
+    active_suppliers = len(
+        set(inv.get("fournisseur_id") for inv in invoices if inv.get("fournisseur_id"))
+    )
 
     # Calculate previous period KPIs
     prev_total_ttc = sum(inv.get("total_ttc", 0) or 0 for inv in prev_invoices)
     prev_invoice_count = len(prev_invoices)
     prev_avg_invoice_amount = prev_total_ttc / prev_invoice_count if prev_invoice_count > 0 else 0
-    prev_active_suppliers = len(set(inv.get("fournisseur_id") for inv in prev_invoices if inv.get("fournisseur_id")))
+    prev_active_suppliers = len(
+        set(inv.get("fournisseur_id") for inv in prev_invoices if inv.get("fournisseur_id"))
+    )
 
     # Calculate percentage changes
     def calc_change(current: float, previous: float) -> float:
@@ -81,6 +87,7 @@ async def get_global_dashboard(
 
     # Monthly totals
     from collections import defaultdict
+
     monthly_totals = defaultdict(float)
     for inv in invoices:
         inv_date = inv.get("date")
@@ -89,8 +96,7 @@ async def get_global_dashboard(
             monthly_totals[month_key] += inv.get("total_ttc", 0) or 0
 
     monthly_data = [
-        {"month": month, "total": total}
-        for month, total in sorted(monthly_totals.items())
+        {"month": month, "total": total} for month, total in sorted(monthly_totals.items())
     ]
 
     # Invoice volume over time
@@ -102,8 +108,7 @@ async def get_global_dashboard(
             monthly_counts[month_key] += 1
 
     invoice_volume = [
-        {"month": month, "count": count}
-        for month, count in sorted(monthly_counts.items())
+        {"month": month, "count": count} for month, count in sorted(monthly_counts.items())
     ]
 
     # Supplier totals (views have RLS enabled, no need for user_id filter)
@@ -181,11 +186,7 @@ async def get_global_dashboard(
         # Get brand names
         brand_ids = {bid for bid in product_brand_map.values() if bid}
         if brand_ids:
-            brands_query = (
-                supabase.table("marques")
-                .select("id, nom")
-                .in_("id", list(brand_ids))
-            )
+            brands_query = supabase.table("marques").select("id, nom").in_("id", list(brand_ids))
             brands_result = brands_query.execute()
             brand_name_map = {b["id"]: b.get("nom", "Unknown") for b in brands_result.data or []}
         else:
@@ -195,12 +196,12 @@ async def get_global_dashboard(
         category_ids = {cid for cid in product_category_map.values() if cid}
         if category_ids:
             categories_query = (
-                supabase.table("categories")
-                .select("id, nom")
-                .in_("id", list(category_ids))
+                supabase.table("categories").select("id, nom").in_("id", list(category_ids))
             )
             categories_result = categories_query.execute()
-            category_name_map = {c["id"]: c.get("nom", "Unknown") for c in categories_result.data or []}
+            category_name_map = {
+                c["id"]: c.get("nom", "Unknown") for c in categories_result.data or []
+            }
         else:
             category_name_map = {}
     else:
@@ -272,7 +273,11 @@ async def get_global_dashboard(
     )
 
 
-@router.post("/product-evolution", response_model=ProductEvolutionResponse, summary="Get product evolution analytics")
+@router.post(
+    "/product-evolution",
+    response_model=ProductEvolutionResponse,
+    summary="Get product evolution analytics",
+)
 async def get_product_evolution(
     payload: ProductEvolutionRequest,
     supabase=Depends(get_supabase),
@@ -307,7 +312,7 @@ async def get_product_evolution(
     # Get invoice lines with facture date
     lines_query = (
         supabase.table("lignes_facture")
-        .select("produit_id, prix_unitaire, quantite, montant, facture_id")
+        .select("produit_id, prix_unitaire, quantite, montant, facture_id, unite, poids_volume")
         .in_("produit_id", product_ids)
         .eq("user_id", user_id)
     )
@@ -330,20 +335,15 @@ async def get_product_evolution(
     facture_date_map = {f["id"]: f.get("date") for f in (factures_result.data or [])}
 
     # Filter lines by date range
-    filtered_lines = [
-        line for line in lines_data
-        if line.get("facture_id") in facture_date_map
-    ]
+    filtered_lines = [line for line in lines_data if line.get("facture_id") in facture_date_map]
 
     # Aggregate by product and month - collect ALL metrics
     from collections import defaultdict
 
     # Store all three metrics separately
-    product_monthly_data = defaultdict(lambda: defaultdict(lambda: {
-        "unit_prices": [],
-        "quantities": [],
-        "amounts": []
-    }))
+    product_monthly_data = defaultdict(
+        lambda: defaultdict(lambda: {"unit_prices": [], "quantities": [], "amounts": []})
+    )
 
     for line in filtered_lines:
         product_id = line.get("produit_id")
@@ -380,7 +380,8 @@ async def get_product_evolution(
             # Calculate aggregated values for all metrics
             avg_unit_price = (
                 sum(metrics["unit_prices"]) / len(metrics["unit_prices"])
-                if metrics["unit_prices"] else None
+                if metrics["unit_prices"]
+                else None
             )
             total_quantity = sum(metrics["quantities"]) if metrics["quantities"] else None
             total_amount = sum(metrics["amounts"]) if metrics["amounts"] else None

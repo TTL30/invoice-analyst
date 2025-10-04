@@ -2,8 +2,8 @@
 
 import { ArticleRow } from "../../types/invoice";
 
-const numericKeys: (keyof ArticleRow)[] = ["Prix Unitaire", "Packaging", "Quantité", "Total"];
-const textKeys: (keyof ArticleRow)[] = ["Reference", "Désignation"];
+const numericKeys: (keyof ArticleRow)[] = ["Prix Unitaire", "Packaging", "Quantité", "Poids/Volume", "Total"];
+const textKeys: (keyof ArticleRow)[] = ["Reference", "Désignation", "Unité"];
 
 interface EditableArticlesTableProps {
   articles: ArticleRow[];
@@ -17,9 +17,9 @@ export const EditableArticlesTable = ({ articles, onChange, categories, marques 
     const next = [...articles];
     if (numericKeys.includes(key)) {
       const parsed = value === "" ? null : Number(value);
-      next[index] = { ...next[index], [key]: isNaN(parsed as number) ? null : parsed };
+      next[index] = { ...next[index], [key]: isNaN(parsed as number) ? null : parsed, userEdited: true };
     } else {
-      next[index] = { ...next[index], [key]: value };
+      next[index] = { ...next[index], [key]: value, userEdited: true };
     }
     onChange(next);
   };
@@ -39,50 +39,98 @@ export const EditableArticlesTable = ({ articles, onChange, categories, marques 
         <table className="w-full table-fixed divide-y divide-gray-100">
         <thead className="bg-gray-50 sticky top-0 z-10">
           <tr>
-            <th className="w-[10%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Référence</th>
-            <th className="w-[20%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Désignation</th>
-            <th className="w-[10%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Prix Unit.</th>
-            <th className="w-[8%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Pack.</th>
-            <th className="w-[8%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Qté</th>
-            <th className="w-[10%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Total</th>
-            <th className="w-[12%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Marque</th>
-            <th className="w-[12%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Catégorie</th>
-            <th className="w-[10%] px-2 py-3 bg-gray-50" />
+            <th className="w-[8%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Référence</th>
+            <th className="w-[18%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Désignation</th>
+            <th className="w-[8%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Prix Unit.</th>
+            <th className="w-[7%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Pack.</th>
+            <th className="w-[7%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Qté</th>
+            <th className="w-[7%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Unité</th>
+            <th className="w-[8%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Poids/Vol.</th>
+            <th className="w-[10%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Marque</th>
+            <th className="w-[10%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Catégorie</th>
+            <th className="w-[8%] px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700 bg-gray-50">Total</th>
+            <th className="w-[9%] px-2 py-3 bg-gray-50" />
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {articles.map((article, index) => {
-            // Apply color based on validation status from PDF annotation
-            let rowBgClass = "bg-white";
-            if (article.validationStatus === "correct") {
-              rowBgClass = "bg-green-50"; // Green like PDF (0.0, 0.5, 0.0) with opacity
-            } else if (article.validationStatus === "error") {
-              rowBgClass = "bg-red-50"; // Red like PDF (1.0, 0.0, 0.0) with opacity
-            }
+            // Apply color from PDF annotation highlighting
+            const rowStyle = article.highlightColor
+              ? {
+                  backgroundColor: article.highlightColor + "30", // Add 30% opacity (hex: ~50)
+                }
+              : {};
 
             return (
-            <tr key={index} className={rowBgClass} title={article.validationStatus === "error" && article.missingFields ? `Potential issues with: ${article.missingFields.join(", ")}` : undefined}>
-              {textKeys.map((key) => (
-                <td key={key as string} className="px-2 py-2">
-                  <input
-                    type="text"
-                    value={(article[key] as string | null | undefined) ?? ""}
-                    onChange={(event) => updateArticle(index, key, event.target.value)}
-                    className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
-                  />
-                </td>
-              ))}
-              {numericKeys.map((key) => (
-                <td key={key as string} className="px-2 py-2">
-                  <input
-                    type="number"
-                    value={(article[key] as number | null | undefined) ?? ""}
-                    onChange={(event) => updateArticle(index, key, event.target.value)}
-                    className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
-                    step="0.01"
-                  />
-                </td>
-              ))}
+            <tr key={index} style={rowStyle}>
+              {/* Référence */}
+              <td className="px-2 py-2">
+                <input
+                  type="text"
+                  value={(article.Reference as string | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Reference", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                />
+              </td>
+              {/* Désignation */}
+              <td className="px-2 py-2">
+                <input
+                  type="text"
+                  value={(article.Désignation as string | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Désignation", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                />
+              </td>
+              {/* Prix Unitaire */}
+              <td className="px-2 py-2">
+                <input
+                  type="number"
+                  value={(article["Prix Unitaire"] as number | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Prix Unitaire", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                  step="0.01"
+                />
+              </td>
+              {/* Packaging */}
+              <td className="px-2 py-2">
+                <input
+                  type="number"
+                  value={(article.Packaging as number | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Packaging", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                  step="0.01"
+                />
+              </td>
+              {/* Quantité */}
+              <td className="px-2 py-2">
+                <input
+                  type="number"
+                  value={(article.Quantité as number | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Quantité", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                  step="0.01"
+                />
+              </td>
+              {/* Unité */}
+              <td className="px-2 py-2">
+                <input
+                  type="text"
+                  value={(article.Unité as string | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Unité", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                />
+              </td>
+              {/* Poids/Volume */}
+              <td className="px-2 py-2">
+                <input
+                  type="number"
+                  value={(article["Poids/Volume"] as number | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Poids/Volume", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                  step="0.01"
+                />
+              </td>
+              {/* Marque */}
               <td className="px-2 py-2">
                 <input
                   type="text"
@@ -92,6 +140,7 @@ export const EditableArticlesTable = ({ articles, onChange, categories, marques 
                   className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
                 />
               </td>
+              {/* Catégorie */}
               <td className="px-2 py-2">
                 <select
                   value={article["Catégorie"] ?? ""}
@@ -106,6 +155,17 @@ export const EditableArticlesTable = ({ articles, onChange, categories, marques 
                   ))}
                 </select>
               </td>
+              {/* Total */}
+              <td className="px-2 py-2">
+                <input
+                  type="number"
+                  value={(article.Total as number | null | undefined) ?? ""}
+                  onChange={(event) => updateArticle(index, "Total", event.target.value)}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-teal-600 focus:outline-none"
+                  step="0.01"
+                />
+              </td>
+              {/* Delete button */}
               <td className="px-2 py-2 text-center">
                 <button
                   type="button"

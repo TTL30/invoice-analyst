@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 
@@ -10,6 +10,13 @@ import { runExtraction, saveInvoice } from "../../lib/api/extraction";
 import { PdfDropzone } from "../forms/PdfDropzone";
 import { EditableArticlesTable } from "../tables/EditableArticlesTable";
 import { PdfViewer } from "./PdfViewer";
+import {
+  loadExtractionState,
+  saveExtractionState,
+  clearExtractionState,
+  base64ToFile,
+  base64ToUrl
+} from "../../lib/extractionPersistence";
 
 interface ExtractionWorkspaceProps {
   categories: string[];
@@ -49,16 +56,34 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
   const [file, setFile] = useState<File | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
   const [annotatedPreviewUrl, setAnnotatedPreviewUrl] = useState<string | null>(null);
-  const [confirmationRow, setConfirmationRow] = useState<ArticleRow>(emptyArticle);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<ExtractionResponse | null>(null);
   const [articles, setArticles] = useState<ArticleRow[]>([emptyArticle]);
   const [activePdf, setActivePdf] = useState<"annotated" | "original">("original");
+  const [hideDetails, setHideDetails] = useState(false);
+  const [isRestoringState, setIsRestoringState] = useState(false);
+  const [metadataColors, setMetadataColors] = useState<{ [key: string]: string }>({});
 
-  const { register, handleSubmit, reset } = useForm<InvoiceFormValues>({
+  const { register, handleSubmit, reset, watch, getValues } = useForm<InvoiceFormValues>({
     defaultValues: buildDefaultFormValues(),
   });
+
+  // Watch all form values for auto-save
+  const formValues = watch();
+  const packageCount = formValues.packageCount;
+
+  // Track if we've loaded persisted state to avoid overwriting
+  const hasLoadedPersistedState = useRef(false);
+  // Debounce timer for auto-save
+  const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to get background color with opacity for metadata fields
+  const getFieldBackgroundColor = (fieldName: string) => {
+    const color = metadataColors[fieldName];
+    if (!color) return undefined;
+    return color + "30"; // Add 30% opacity (hex: ~50)
+  };
 
   const convertBase64PdfToUrl = (base64: string) => {
     if (typeof window === "undefined" || typeof atob === "undefined") {
@@ -73,6 +98,103 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
     const blob = new Blob([byteArray], { type: "application/pdf" });
     return URL.createObjectURL(blob);
   };
+
+  // Load persisted state on mount
+  useEffect(() => {
+    if (!userId || hasLoadedPersistedState.current || isRestoringState) {
+      return;
+    }
+
+    const persistedState = loadExtractionState(userId);
+    if (!persistedState) {
+      hasLoadedPersistedState.current = true;
+      return;
+    }
+
+    setIsRestoringState(true);
+
+    try {
+      // Restore form values
+      reset(persistedState.formValues);
+
+      // Restore articles
+      setArticles(persistedState.articles);
+
+      // Restore result
+      setResult(persistedState.result);
+
+      // Restore file if available
+      if (persistedState.fileData) {
+        const restoredFile = base64ToFile(
+          persistedState.fileData.base64,
+          persistedState.fileData.name,
+          persistedState.fileData.type
+        );
+        setFile(restoredFile);
+
+        const previewUrl = URL.createObjectURL(restoredFile);
+        setLocalPreviewUrl(previewUrl);
+      }
+
+      // Restore annotated PDF if available
+      if (persistedState.annotatedPdfBase64) {
+        const annotatedUrl = base64ToUrl(persistedState.annotatedPdfBase64);
+        setAnnotatedPreviewUrl(annotatedUrl);
+      }
+
+      // Restore UI state
+      setActivePdf(persistedState.activePdf);
+      setHideDetails(persistedState.hideDetails);
+
+      hasLoadedPersistedState.current = true;
+      toast.success("Brouillon restauré");
+    } catch (error) {
+      console.error("Error restoring persisted state:", error);
+      toast.error("Erreur lors de la restauration du brouillon");
+    } finally {
+      setIsRestoringState(false);
+    }
+  }, [userId, reset, isRestoringState]);
+
+  // Auto-save to localStorage with debouncing
+  useEffect(() => {
+    if (!userId || !hasLoadedPersistedState.current || isRestoringState) {
+      return;
+    }
+
+    // Only auto-save if there's actual data to save
+    if (!result && !file && articles.length === 1 && !articles[0].Reference) {
+      return;
+    }
+
+    // Clear existing timer
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current);
+    }
+
+    // Debounce the save
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        await saveExtractionState(userId, {
+          formValues: getValues(),
+          articles,
+          result,
+          file,
+          annotatedPdfBase64: result?.annotatedPdfBase64 ?? null,
+          activePdf,
+          hideDetails,
+        });
+      } catch (error) {
+        console.error("Error auto-saving extraction state:", error);
+      }
+    }, 2000); // Save 2 seconds after last change
+
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+    };
+  }, [userId, formValues, articles, result, file, activePdf, hideDetails, isRestoringState, getValues]);
 
   useEffect(() => {
     if (!result) {
@@ -100,7 +222,19 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
       tva: structured.Total.tva ? Number(structured.Total.tva) : 0,
       total_ttc: structured.Total.total_ttc ? Number(structured.Total.total_ttc) : 0,
     });
-    setArticles(result.articles.length ? result.articles : [emptyArticle]);
+
+    // Add highlight colors to articles from color mapping
+    const articlesWithColors = result.articles.map((article, index) => ({
+      ...article,
+      highlightColor: result.colorMapping?.article_colors?.[index],
+    }));
+
+    setArticles(articlesWithColors.length ? articlesWithColors : [emptyArticle]);
+
+    // Store metadata colors for form field highlighting
+    if (result.colorMapping?.metadata_colors) {
+      setMetadataColors(result.colorMapping.metadata_colors);
+    }
 
     const annotatedUrl = result.annotatedPdfBase64
       ? convertBase64PdfToUrl(result.annotatedPdfBase64)
@@ -128,7 +262,7 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
     }
   }, [annotatedPreviewUrl]);
 
-  const handleFileSelected = (selected: File | null) => {
+  const handleFileSelected = async (selected: File | null) => {
     setFile(selected);
     setAnnotatedPreviewUrl((prev) => {
       if (prev && prev.startsWith("blob:")) {
@@ -149,43 +283,14 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
     setArticles([emptyArticle]);
     setResult(null);
     setActivePdf("original");
-    resetConfirmationRow();
+
+    // Auto-extract when file is dropped
+    if (selected && userId) {
+      await onExtract(selected);
+    }
   };
 
-  const confirmationReady = useMemo(() => {
-    const {
-      Reference,
-      "Désignation": designation,
-      Packaging,
-      "Quantité": quantity,
-      "Prix Unitaire": unitPrice,
-      Total,
-      Marque,
-      "Catégorie": category,
-    } = confirmationRow;
-
-    const numericValues = [Packaging, quantity, unitPrice, Total];
-    const numericFieldsValid = numericValues.every((value) => {
-      if (value === null || value === undefined || value === "") {
-        return false;
-      }
-      const parsed = Number(value);
-      return !Number.isNaN(parsed) && parsed > 0;
-    });
-
-    const textFieldsValid = [Reference, designation, Marque, category].every((value) => {
-      if (typeof value === "string") {
-        return value.trim().length > 0;
-      }
-      return Boolean(value);
-    });
-
-    return Boolean(textFieldsValid && numericFieldsValid);
-  }, [confirmationRow]);
-
-  const canExtract = Boolean(file && confirmationReady);
   const hasExtraction = Boolean(result);
-  const resetConfirmationRow = () => setConfirmationRow({ ...emptyArticle });
   const annotatedAvailable = Boolean(annotatedPreviewUrl);
 
   useEffect(() => {
@@ -194,11 +299,7 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
     }
   }, [activePdf, annotatedAvailable]);
 
-  const onExtract = async () => {
-    if (!file) {
-      toast.error("Veuillez sélectionner un PDF");
-      return;
-    }
+  const onExtract = async (fileToExtract: File) => {
     if (!userId) {
       toast.error("Session utilisateur introuvable");
       return;
@@ -213,18 +314,55 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
       setActivePdf("original");
       setIsExtracting(true);
       const extraction = await runExtraction({
-        file,
-        confirmationRow,
+        file: fileToExtract,
         userId,
       });
       setResult(extraction);
-      toast.success("Extraction terminée");
+
+      // Auto-save immediately after extraction
+      if (extraction && file) {
+        await autoSave(extraction, fileToExtract);
+      }
+
+      toast.success("Extraction et enregistrement terminés");
     } catch (error) {
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Extraction impossible");
+      const errorMessage = error instanceof Error ? error.message : "Extraction impossible";
+
+      // Check if it's an unsupported invoice type error
+      if (errorMessage.includes("Invoice type not supported") || errorMessage.includes("not supported")) {
+        toast.error("Type de facture non supporté, contactez l'administrateur");
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsExtracting(false);
     }
+  };
+
+  const autoSave = async (extraction: ExtractionResponse, fileToSave: File) => {
+    if (!userId) return;
+
+    const structured = extraction.structured;
+    const payload = {
+      userId,
+      invoiceNumber: structured["Numéro de facture"] ?? "",
+      invoiceDate: structured["Date facture"]
+        ? new Date(structured["Date facture"]).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+      supplierName: structured["Information fournisseur"].nom ?? "",
+      supplierAddress: structured["Information fournisseur"].adresse ?? "",
+      filename: extraction.fileName ?? fileToSave.name ?? "facture.pdf",
+      totals: {
+        total_ht: structured.Total.total_ht ? Number(structured.Total.total_ht) : 0,
+        tva: structured.Total.tva ? Number(structured.Total.tva) : 0,
+        total_ttc: structured.Total.total_ttc ? Number(structured.Total.total_ttc) : 0,
+      },
+      packageCount: structured["Nombre de colis"] ?? null,
+      articles: extraction.articles.length ? extraction.articles : [emptyArticle],
+    };
+
+    await saveInvoice(payload, fileToSave);
   };
 
   const onSave = async (values: InvoiceFormValues) => {
@@ -254,11 +392,14 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
         articles,
       };
       const response = await saveInvoice(payload, file);
+
+      // Clear localStorage after successful save
+      clearExtractionState(userId);
+
       toast.success("Facture enregistrée");
       setResult(null);
       setArticles([emptyArticle]);
       setFile(null);
-      resetConfirmationRow();
       if (localPreviewUrl && localPreviewUrl.startsWith("blob:")) {
         URL.revokeObjectURL(localPreviewUrl);
       }
@@ -280,44 +421,84 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,0.6fr)_minmax(0,0.4fr)] lg:items-start">
-      <div className="flex flex-col gap-8">
+    <div className={hasExtraction ? "grid gap-8 lg:grid-cols-[minmax(0,0.65fr)_minmax(0,0.35fr)] lg:items-start" : "flex items-center justify-center min-h-[60vh]"}>
+      <div className={`${!hasExtraction ? "w-full max-w-2xl" : "space-y-6"}`}>
         {hasExtraction && (
-          <section className="card space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="card flex flex-col h-[calc(100vh-8rem)]">
+            <div className="mb-4 flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">1. Vérifier les données extraites</h2>
-                <p className="text-sm text-slate-500">Revoyez les informations générées automatiquement.</p>
+                <h3 className="text-base font-semibold text-gray-900">Vérifier les données extraites</h3>
+                <p className="text-sm text-gray-600">Revoyez les informations générées automatiquement.</p>
               </div>
-              <button
-                type="button"
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-100"
-                onClick={() => {
-                  setResult(null);
-                  setArticles([emptyArticle]);
-                  resetConfirmationRow();
-                }}
-              >
-                Recommencer
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setHideDetails(!hideDetails)}
+                  className="text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  {hideDetails ? "Afficher détails" : "Masquer détails"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (userId) {
+                      clearExtractionState(userId);
+                    }
+                    setResult(null);
+                    setArticles([emptyArticle]);
+                    setFile(null);
+                    if (localPreviewUrl && localPreviewUrl.startsWith("blob:")) {
+                      URL.revokeObjectURL(localPreviewUrl);
+                    }
+                    setLocalPreviewUrl(null);
+                    setAnnotatedPreviewUrl((prev) => {
+                      if (prev && prev.startsWith("blob:")) {
+                        URL.revokeObjectURL(prev);
+                      }
+                      return null;
+                    });
+                    reset();
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-900 underline"
+                >
+                  Recommencer
+                </button>
+              </div>
             </div>
-            <form className="space-y-6" onSubmit={handleSubmit(onSave)}>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">Nom de la facture</label>
+
+            <form onSubmit={handleSubmit(onSave)} className="flex flex-col flex-1 min-h-0 space-y-4">
+              {!hideDetails && (
+              <>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm text-gray-700 mb-1">Nom de la facture</label>
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
                     {...register("filename")}
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">Fournisseur</label>
+
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Nombre de colis</label>
+                  <input
+                    type="number"
+                    {...register("packageCount", { valueAsNumber: true })}
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Fournisseur</label>
                   <input
                     type="text"
-                    list="suppliers-list"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
                     {...register("supplierName")}
+                    list="suppliers-list"
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                    style={{ backgroundColor: getFieldBackgroundColor("supplier_name") }}
                   />
                   <datalist id="suppliers-list">
                     {fournisseurs.map((name) => (
@@ -325,69 +506,43 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
                     ))}
                   </datalist>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">Numéro de facture</label>
+
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Numéro de facture</label>
                   <input
                     type="text"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
                     {...register("invoiceNumber")}
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                    style={{ backgroundColor: getFieldBackgroundColor("invoice_number") }}
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">Date</label>
+
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Date</label>
                   <input
                     type="date"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
                     {...register("invoiceDate")}
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                    style={{ backgroundColor: getFieldBackgroundColor("invoice_date") }}
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Adresse fournisseur</label>
-                <textarea
-                  rows={3}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
+
+              <div>
+                <label className="block text-sm text-gray-700 mb-1">Adresse fournisseur</label>
+                <input
+                  type="text"
                   {...register("supplierAddress")}
+                  placeholder="Value"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
                 />
               </div>
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">Nombre de colis</label>
-                  <input
-                    type="number"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                    {...register("packageCount", { valueAsNumber: true })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">Total HT</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                    {...register("total_ht", { valueAsNumber: true })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">TVA</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                    {...register("tva", { valueAsNumber: true })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-600">Total TTC</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                    {...register("total_ttc", { valueAsNumber: true })}
-                  />
-                </div>
-              </div>
-              <div className="max-h-[360px] overflow-auto rounded-xl border border-slate-200">
+              </>
+              )}
+
+              <div className="flex-1 min-h-0 overflow-auto">
                 <EditableArticlesTable
                   articles={articles}
                   categories={categories}
@@ -395,171 +550,122 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
                   onChange={setArticles}
                 />
               </div>
-              <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+
+              {/* Package count validation warning */}
+              {!hideDetails && (() => {
+                const totalQuantity = articles.reduce((sum, article) => sum + (Number(article["Quantité"]) || 0), 0);
+                const expectedPackages = packageCount ? Number(packageCount) : null;
+
+                if (expectedPackages !== null && totalQuantity !== expectedPackages) {
+                  return (
+                    <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 flex items-start gap-2">
+                      <span className="text-yellow-600 text-lg">⚠️</span>
+                      <div className="flex-1 text-sm">
+                        <p className="font-semibold text-yellow-800">Attention : Écart détecté</p>
+                        <p className="text-yellow-700 mt-1">
+                          Le nombre de colis extrait ({expectedPackages}) ne correspond pas à la somme des quantités dans le tableau ({totalQuantity}).
+                          Veuillez vérifier les données.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {!hideDetails && (
+              <>
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <p>Total quantité: {articles.reduce((sum, item) => sum + (Number(item["Quantité"]) || 0), 0)}</p>
-                  <p>Total montant: {articles.reduce((sum, item) => sum + (Number(item.Total) || 0), 0).toFixed(2)} €</p>
+                  <label className="block text-sm text-gray-700 mb-1">Total HT</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register("total_ht", { valueAsNumber: true })}
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                    style={{ backgroundColor: getFieldBackgroundColor("total_without_taxes") }}
+                  />
                 </div>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isSaving ? "Enregistrement..." : "Enregistrer"}
-                </button>
+
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">TVA</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register("tva", { valueAsNumber: true })}
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                    style={{ backgroundColor: getFieldBackgroundColor("taxes_amount") }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Total TTC</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register("total_ttc", { valueAsNumber: true })}
+                    placeholder="Value"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                    style={{ backgroundColor: getFieldBackgroundColor("total_amount") }}
+                  />
+                </div>
               </div>
+              </>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="w-full rounded-lg bg-teal-600 px-6 py-3 text-sm font-medium text-white transition hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSaving ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Enregistrement...
+                  </>
+                ) : (
+                  "Enregistrer"
+                )}
+              </button>
             </form>
-          </section>
+          </div>
         )}
 
         {!hasExtraction && (
           <section className="card space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-slate-800">1. Importer une facture</h2>
-                <p className="text-sm text-slate-500">Ajoutez un PDF et renseignez un premier article pour guider l'extraction.</p>
+                <h2 className="text-lg font-semibold text-slate-800">Importer une facture</h2>
+                <p className="text-sm text-slate-500">Déposez votre PDF pour lancer l'extraction automatiquement.</p>
               </div>
             </div>
             <PdfDropzone
               file={file}
               onFileSelected={handleFileSelected}
             />
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Référence *</label>
-                <input
-                  type="text"
-                  value={confirmationRow.Reference ?? ""}
-                  onChange={(event) => setConfirmationRow((current) => ({ ...current, Reference: event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                />
+            {isExtracting && (
+              <div className="flex items-center justify-center gap-3 rounded-xl bg-brand/5 px-6 py-4">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent"></div>
+                <p className="text-sm font-medium text-brand">Extraction en cours...</p>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Désignation *</label>
-                <input
-                  type="text"
-                  value={confirmationRow["Désignation"] ?? ""}
-                  onChange={(event) => setConfirmationRow((current) => ({ ...current, "Désignation": event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Packaging *</label>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={confirmationRow.Packaging ?? ""}
-                  onChange={(event) =>
-                    setConfirmationRow((current) => ({
-                      ...current,
-                      Packaging: event.target.value === "" ? null : Number(event.target.value),
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Quantité *</label>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  value={confirmationRow["Quantité"] ?? ""}
-                  onChange={(event) =>
-                    setConfirmationRow((current) => ({
-                      ...current,
-                      "Quantité": event.target.value === "" ? null : Number(event.target.value),
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Prix Unitaire (€) *</label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={confirmationRow["Prix Unitaire"] ?? ""}
-                  onChange={(event) =>
-                    setConfirmationRow((current) => ({
-                      ...current,
-                      "Prix Unitaire": event.target.value === "" ? null : Number(event.target.value),
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Total (€) *</label>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={confirmationRow.Total ?? ""}
-                  onChange={(event) =>
-                    setConfirmationRow((current) => ({
-                      ...current,
-                      Total: event.target.value === "" ? null : Number(event.target.value),
-                    }))
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Marque *</label>
-                <input
-                  type="text"
-                  value={confirmationRow.Marque ?? ""}
-                  onChange={(event) => setConfirmationRow((current) => ({ ...current, Marque: event.target.value }))}
-                  list="marques-extraction"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                />
-                <datalist id="marques-extraction">
-                  {marques.map((marque) => (
-                    <option key={marque} value={marque} />
-                  ))}
-                </datalist>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-600">Catégorie *</label>
-                <select
-                  value={confirmationRow["Catégorie"] ?? ""}
-                  onChange={(event) => setConfirmationRow((current) => ({ ...current, "Catégorie": event.target.value }))}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-brand focus:outline-none"
-                >
-                  <option value="">-</option>
-                  {categories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <p className="text-xs text-slate-500">
-              Renseignez toutes les informations marquées d'un * pour optimiser l'extraction des lignes.
-            </p>
-            <button
-              type="button"
-              onClick={onExtract}
-              disabled={!canExtract || isExtracting}
-              className="w-full rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isExtracting ? "Extraction en cours..." : "Lancer l'extraction"}
-            </button>
+            )}
           </section>
         )}
       </div>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-800">Prévisualisation</h2>
-          <div className="flex items-center gap-2 rounded-full bg-white p-1 shadow-card">
+      {hasExtraction && (
+        <div className="sticky top-24 flex flex-col h-[calc(100vh-8rem)]">
+          <div className="flex items-center justify-center gap-2 rounded-full card !p-1 mb-4">
             <button
               type="button"
               onClick={() => setActivePdf("original")}
-              className={`rounded-full px-4 py-2 text-sm font-medium ${activePdf === "original" ? "bg-brand text-white" : "text-slate-500"}`}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                activePdf === "original" ? "bg-teal-600 text-white" : "text-gray-600 hover:bg-gray-100"
+              }`}
             >
               Originale
             </button>
@@ -567,21 +673,25 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
               type="button"
               onClick={() => setActivePdf("annotated")}
               disabled={!annotatedAvailable}
-              className={`rounded-full px-4 py-2 text-sm font-medium ${activePdf === "annotated" ? "bg-brand text-white" : "text-slate-500"} ${!annotatedAvailable ? "opacity-50" : ""}`}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                activePdf === "annotated" ? "bg-teal-600 text-white" : "text-gray-600 hover:bg-gray-100"
+              } ${!annotatedAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
               title={annotatedAvailable ? undefined : "Disponible après extraction"}
             >
               Annotée
             </button>
           </div>
+          <div className="flex-1 min-h-0">
+            <PdfViewer
+              url={
+                activePdf === "annotated"
+                  ? annotatedPreviewUrl
+                  : localPreviewUrl
+              }
+            />
+          </div>
         </div>
-        <PdfViewer
-          url={
-            activePdf === "annotated"
-              ? annotatedPreviewUrl
-              : localPreviewUrl
-          }
-        />
-      </div>
+      )}
     </div>
   );
 };

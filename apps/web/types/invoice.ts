@@ -4,12 +4,15 @@ export type ArticleRow = {
   "Prix Unitaire"?: number | null;
   Packaging?: number | null;
   "Quantité"?: number | null;
+  "Unité"?: string | null;
+  "Poids/Volume"?: number | null;
   Total?: number | null;
   Marque?: string | null;
   "Catégorie"?: string | null;
-  // Validation status from PDF annotation
-  validationStatus?: "correct" | "error" | null;
-  missingFields?: string[] | null;
+  // Track if user has edited this row (optional, undefined by default)
+  userEdited?: boolean;
+  // Highlight color from PDF annotation (optional, undefined by default)
+  highlightColor?: string;
 };
 
 export interface StructuredInvoice {
@@ -28,11 +31,19 @@ export interface StructuredInvoice {
   articles?: ArticleRow[] | string;
 }
 
+export interface ColorMapping {
+  metadata_colors: {
+    [key: string]: string; // Field name -> hex color
+  };
+  article_colors: string[]; // Array of hex colors, one per article
+}
+
 export interface ExtractionResponse {
   structured: StructuredInvoice;
   articles: ArticleRow[];
   annotatedPdfBase64?: string | null;
   fileName?: string | null;
+  colorMapping?: ColorMapping;
 }
 
 export interface SaveInvoicePayload {

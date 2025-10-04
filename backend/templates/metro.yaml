@@ -1,0 +1,60 @@
+supplier: "METRO"
+
+identifiers:
+  - "METRO"
+
+table:
+  start_anchor: "MM EAN"
+  header_rows: 2
+  header:
+    - "MM EAN"
+    - "Numéro article"
+    - "Désignation ⑧ de l'article"
+    - "Régie Vol %"
+    - "VAP unit. L."
+    - "Poids ou⑩ VE unit.L."
+    - "Prix unitaire"
+    - "Colisage"
+    - "Qté"
+    - "Montant"
+    - "TVA"
+    - "Promo"
+    - "Extr."
+    - "Promo"
+    - "Extr."
+
+  excluded_columns:
+    - "MM EAN"
+    - "TVA"
+    - "Promo"
+    - "Extr."
+
+  footer_keywords:
+    - "Nombre de colis"
+    - "Total Volume"
+    - "Total à payer"
+    - "Poids total"
+    - "Consigne"
+
+  summary_patterns:
+    - "***"
+    - "---"
+
+  detail_patterns:
+    - "PRIX AU KG OU AU LITRE:"
+    - "_BEST_BEFORE_DATE"
+    - "N° GTIN et LOT :"
+    - "BIO*"
+    - "Mention"
+
+  min_aligned_blocks: 1
+  alignment_threshold: 0.3
+
+  column_char_offsets: [0, 14, 22, 88, 88, 88, 88, 98, 102, 109, 118]
+
+  # Column offset variants for handling optional MM EAN column
+  column_offset_variants:
+    - detect_pattern: "^\\d{13}"  # MM EAN present (13 digits)
+      offsets: [0, 14, 22, 88, 88, 88, 88, 98, 102, 109, 118]
+    - detect_pattern: "^\\d{7,8}"  # MM EAN missing (7-8 digit article number)
+      offsets: [0, 8, 74, 74, 74, 74, 84, 88, 94, 104]

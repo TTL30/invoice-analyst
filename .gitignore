@@ -8,6 +8,8 @@ apps/web/node_modules/
 apps/web/.next/
 apps/web/dist/
 apps/web/.env.local
+uv.lock
+.mcp.json
 
 # Virtual environment
 .venv/
@@ -20,3 +22,17 @@ temp.pdf
 invoices/
 assets/
 legacy/
+# <AIDD-PRIVACY>
+#
+# You might want to ignore the following files and directories:
+#
+aidd* # AIDD installation folder
+aidd/
+aidd-docs/
+.aidd-context/
+
+.claude
+.opencode
+# aidd-generated removed (legacy)
+
+# </AIDD-PRIVACY>
