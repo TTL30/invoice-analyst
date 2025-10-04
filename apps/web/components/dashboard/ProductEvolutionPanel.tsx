@@ -27,6 +27,17 @@ const CHART_COLORS = [
   "#FFD3B6", // Peach
 ];
 
+// ✅ helpers to ensure chronological order and proper ISO dates
+const toIsoMonthStart = (s: string) => {
+  // "YYYY-MM" -> "YYYY-MM-01" ; already "YYYY-MM-DD" stays unchanged
+  return /^\d{4}-\d{2}$/.test(s) ? `${s}-01` : s;
+};
+
+const sortByDateAsc = <T extends { date: string }>(arr: T[]) =>
+  [...arr].sort(
+    (a, b) => Date.parse(toIsoMonthStart(a.date)) - Date.parse(toIsoMonthStart(b.date))
+  );
+
 export const ProductEvolutionPanel = ({ startDate, endDate }: ProductEvolutionPanelProps) => {
   const { session } = useSupabase();
   const userId = session?.user.id;
@@ -45,7 +56,13 @@ export const ProductEvolutionPanel = ({ startDate, endDate }: ProductEvolutionPa
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const data = await fetchProductEvolution(userId, selectedProductIds, metric, startDate, endDate);
+        const data = await fetchProductEvolution(
+          userId,
+          selectedProductIds,
+          metric,
+          startDate,
+          endDate
+        );
         setEvolutionData(data);
       } catch (error) {
         console.error(error);
@@ -69,42 +86,43 @@ export const ProductEvolutionPanel = ({ startDate, endDate }: ProductEvolutionPa
     }
   };
 
-  const chartData = evolutionData?.series.map((series, index) => {
-    let name = series.productName;
-    if (series.supplierName || series.collisage) {
-      const parts = [];
-      if (series.supplierName) parts.push(series.supplierName);
-      if (series.collisage) parts.push(`x${series.collisage}`);
-      name = `${series.productName} (${parts.join(" - ")})`;
-    }
-    return {
-      type: "scatter" as const,
-      mode: "lines+markers" as const,
-      name,
-      x: series.dataPoints.map((point) => point.date),
-      y: series.dataPoints.map((point) => point.value),
-    customdata: series.dataPoints.map((point) => [
-      point.unitPrice ?? 0,
-      point.quantity ?? 0,
-      point.amount ?? 0,
-    ]),
-    hovertemplate:
-      "<b>%{fullData.name}</b><br>" +
-      "Mois: %{x}<br>" +
-      "Prix Unitaire: %{customdata[0]:.2f} €<br>" +
-      "Quantité: %{customdata[1]:.0f}<br>" +
-      "Montant: %{customdata[2]:.2f} €<br>" +
-      "<extra></extra>",
-    line: {
-      color: CHART_COLORS[index % CHART_COLORS.length],
-      width: 2,
-    },
-    marker: {
-      color: CHART_COLORS[index % CHART_COLORS.length],
-      size: 6,
-    },
-    };
-  }) || [];
+  const chartData =
+    evolutionData?.series.map((series, index) => {
+      // ✅ ensure chronological ordering + ISO month start strings for x-axis
+      const points = sortByDateAsc(series.dataPoints);
+
+      let name = series.productName;
+      if (series.supplierName || series.collisage) {
+        const parts: string[] = [];
+        if (series.supplierName) parts.push(series.supplierName);
+        if (series.collisage) parts.push(`x${series.collisage}`);
+        name = `${series.productName} (${parts.join(" - ")})`;
+      }
+
+      return {
+        type: "scatter" as const,
+        mode: "lines+markers" as const,
+        name,
+        x: points.map((p) => toIsoMonthStart(p.date)), // ✅ time axis friendly
+        y: points.map((p) => p.value),
+        customdata: points.map((p) => [p.unitPrice ?? 0, p.quantity ?? 0, p.amount ?? 0]),
+        hovertemplate:
+          "<b>%{fullData.name}</b><br>" +
+          "Mois: %{x|%Y-%m}<br>" + // ✅ formatted as year-month
+          "Prix Unitaire: %{customdata[0]:.2f} €<br>" +
+          "Quantité: %{customdata[1]:.0f}<br>" +
+          "Montant: %{customdata[2]:.2f} €<br>" +
+          "<extra></extra>",
+        line: {
+          color: CHART_COLORS[index % CHART_COLORS.length],
+          width: 2,
+        },
+        marker: {
+          color: CHART_COLORS[index % CHART_COLORS.length],
+          size: 6,
+        },
+      };
+    }) || [];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -172,7 +190,8 @@ export const ProductEvolutionPanel = ({ startDate, endDate }: ProductEvolutionPa
                 },
                 xaxis: {
                   title: { text: "Mois" },
-                  type: "category",
+                  type: "date",        // ✅ crucial: time axis
+                  tickformat: "%Y-%m", // ✅ display as YYYY-MM
                   gridcolor: "#e2e8f0",
                 },
                 yaxis: {

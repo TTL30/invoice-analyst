@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -367,7 +367,6 @@ async def get_product_evolution(
     # Aggregate by product and month - collect ALL metrics
     from collections import defaultdict
 
-    # Store all three metrics separately
     product_monthly_data = defaultdict(
         lambda: defaultdict(lambda: {"unit_prices": [], "quantities": [], "amounts": []})
     )
@@ -380,9 +379,8 @@ async def get_product_evolution(
         if not invoice_date or not product_id:
             continue
 
-        month_key = invoice_date[:7]  # YYYY-MM format
+        month_key = invoice_date[:7]  # "YYYY-MM"
 
-        # Collect all metrics regardless of selected metric
         unit_price = line.get("prix_unitaire")
         quantity = line.get("quantite")
         amount = line.get("montant")
@@ -394,7 +392,7 @@ async def get_product_evolution(
         if amount is not None:
             product_monthly_data[product_id][month_key]["amounts"].append(float(amount))
 
-    # Build series
+    # Build series with sorted months and ISO dates
     series = []
     for product_id in product_ids:
         if product_id not in products_map:
@@ -403,8 +401,12 @@ async def get_product_evolution(
         monthly_data = product_monthly_data.get(product_id, {})
         data_points = []
 
-        for month, metrics in sorted(monthly_data.items()):
-            # Calculate aggregated values for all metrics
+        # ✅ sort months chronologically
+        months_sorted = sorted(
+            monthly_data.items(), key=lambda kv: datetime.strptime(kv[0], "%Y-%m")
+        )
+
+        for month, metrics in months_sorted:
             avg_unit_price = (
                 sum(metrics["unit_prices"]) / len(metrics["unit_prices"])
                 if metrics["unit_prices"]
@@ -413,17 +415,19 @@ async def get_product_evolution(
             total_quantity = sum(metrics["quantities"]) if metrics["quantities"] else None
             total_amount = sum(metrics["amounts"]) if metrics["amounts"] else None
 
-            # Determine the main value based on selected metric
             if metric == "unit_price":
                 main_value = avg_unit_price or 0
             elif metric == "quantity":
                 main_value = total_quantity or 0
-            else:  # amount
+            else:
                 main_value = total_amount or 0
+
+            # ✅ emit full ISO date so frontend can use time axis
+            iso_month_start = f"{month}-01"
 
             data_points.append(
                 TimeDataPoint(
-                    date=month,
+                    date=iso_month_start,
                     value=main_value,
                     unitPrice=avg_unit_price,
                     quantity=total_quantity,
