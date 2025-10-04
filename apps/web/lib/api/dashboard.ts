@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../env";
+import { API_BASE_URL, API_KEY } from "../env";
 
 export interface MonthlyTotal {
   month: string;
@@ -58,6 +58,7 @@ export const fetchGlobalDashboard = async (
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(API_KEY && { "X-API-Key": API_KEY }),
     },
     body: JSON.stringify({
       userId,
@@ -103,6 +104,7 @@ export const fetchProductEvolution = async (
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(API_KEY && { "X-API-Key": API_KEY }),
     },
     body: JSON.stringify({
       userId,

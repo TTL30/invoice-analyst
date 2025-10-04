@@ -1,22 +1,22 @@
-import { API_BASE_URL } from "../env";
+import { API_BASE_URL, API_KEY } from "../env";
 import { ArticleRow, ExtractionResponse, SaveInvoicePayload } from "../../types/invoice";
 
 export const runExtraction = async ({
   file,
-  confirmationRow,
   userId,
 }: {
   file: File;
-  confirmationRow: ArticleRow;
   userId: string;
 }): Promise<ExtractionResponse> => {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("user_id", userId);
-  formData.append("confirmation_row", JSON.stringify(confirmationRow));
 
   const response = await fetch(`${API_BASE_URL}/extract`, {
     method: "POST",
+    headers: {
+      ...(API_KEY && { "X-API-Key": API_KEY }),
+    },
     body: formData,
   });
 
@@ -36,6 +36,9 @@ export const saveInvoice = async (payload: SaveInvoicePayload, file: File) => {
 
   const response = await fetch(`${API_BASE_URL}/invoices`, {
     method: "POST",
+    headers: {
+      ...(API_KEY && { "X-API-Key": API_KEY }),
+    },
     body: formData,
   });
 
@@ -52,6 +55,7 @@ export const deleteInvoices = async (userId: string, invoiceIds: number[]) => {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(API_KEY && { "X-API-Key": API_KEY }),
     },
     body: JSON.stringify({ userId, invoiceIds }),
   });
@@ -66,6 +70,7 @@ export const downloadInvoices = async (userId: string, invoiceIds: number[]) => 
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(API_KEY && { "X-API-Key": API_KEY }),
     },
     body: JSON.stringify({ userId, invoiceIds }),
   });
@@ -81,6 +86,7 @@ export const deleteProduct = async (userId: string, productId: number) => {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",
+      ...(API_KEY && { "X-API-Key": API_KEY }),
     },
     body: JSON.stringify({ userId }),
   });
@@ -106,6 +112,7 @@ export const updateProduct = async (
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
+      ...(API_KEY && { "X-API-Key": API_KEY }),
     },
     body: JSON.stringify({ userId, ...updates }),
   });
