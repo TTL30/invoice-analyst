@@ -299,7 +299,7 @@ async def get_product_evolution(
     # Get product details with supplier
     products_query = (
         supabase.table("produits")
-        .select("id, reference, designation, fournisseur_id, unite")
+        .select("id, reference, designation, fournisseur_id")
         .in_("id", product_ids)
         .eq("user_id", user_id)
     )
@@ -311,9 +311,7 @@ async def get_product_evolution(
     supplier_name_map = {}
     if supplier_ids:
         suppliers_query = (
-            supabase.table("fournisseurs")
-            .select("id, nom")
-            .in_("id", list(supplier_ids))
+            supabase.table("fournisseurs").select("id, nom").in_("id", list(supplier_ids))
         )
         suppliers_result = suppliers_query.execute()
         supplier_name_map = {s["id"]: s.get("nom", "") for s in (suppliers_result.data or [])}
@@ -323,17 +321,17 @@ async def get_product_evolution(
         for p in products_data
     }
 
-    # Map product ID to supplier name and unite
+    # Map product ID to supplier name
     product_supplier_map = {
-        p["id"]: supplier_name_map.get(p.get("fournisseur_id"), None)
-        for p in products_data
+        p["id"]: supplier_name_map.get(p.get("fournisseur_id"), None) for p in products_data
     }
-    product_unite_map = {p["id"]: p.get("unite") for p in products_data}
 
     # Get invoice lines with facture date
     lines_query = (
         supabase.table("lignes_facture")
-        .select("produit_id, prix_unitaire, quantite, montant, facture_id, unite, poids_volume, collisage")
+        .select(
+            "produit_id, prix_unitaire, quantite, montant, facture_id, unite, poids_volume, collisage"
+        )
         .in_("produit_id", product_ids)
         .eq("user_id", user_id)
     )
@@ -438,7 +436,6 @@ async def get_product_evolution(
                 productId=product_id,
                 productName=products_map[product_id],
                 supplierName=product_supplier_map.get(product_id),
-                unite=product_unite_map.get(product_id),
                 collisage=product_collisage_map.get(product_id),
                 dataPoints=data_points,
             )

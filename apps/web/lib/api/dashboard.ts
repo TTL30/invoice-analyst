@@ -87,7 +87,6 @@ export interface ProductTimeSeries {
   productId: number;
   productName: string;
   supplierName?: string;
-  unite?: string;
   collisage?: number;
   dataPoints: TimeDataPoint[];
 }
