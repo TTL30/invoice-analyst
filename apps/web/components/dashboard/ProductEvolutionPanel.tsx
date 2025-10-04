@@ -162,12 +162,12 @@ export const ProductEvolutionPanel = ({ startDate, endDate }: ProductEvolutionPa
                   font: { size: 18, color: "#0f172a" },
                 },
                 xaxis: {
-                  title: "Mois",
+                  title: { text: "Mois" },
                   type: "category",
                   gridcolor: "#e2e8f0",
                 },
                 yaxis: {
-                  title: getMetricLabel(),
+                  title: { text: getMetricLabel() },
                   gridcolor: "#e2e8f0",
                 },
                 margin: { t: 60, r: 24, l: 60, b: 60 },
