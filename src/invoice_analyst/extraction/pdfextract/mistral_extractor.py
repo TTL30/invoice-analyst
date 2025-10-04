@@ -36,9 +36,16 @@ class MistralExtractor:
         Raises:
             FileNotFoundError: If template file doesn't exist
         """
-        if not template_path.exists():
-            raise FileNotFoundError(f"Prompt template not found: {template_path}")
-        return template_path.read_text()
+        # Try importlib.resources first (for installed packages)
+        try:
+            from importlib.resources import files
+            prompt_file = "invoice_extraction.txt"
+            return files("invoice_analyst.extraction.prompts").joinpath(prompt_file).read_text()
+        except Exception:
+            # Fallback to file path (for development)
+            if not template_path.exists():
+                raise FileNotFoundError(f"Prompt template not found: {template_path}")
+            return template_path.read_text()
 
     def format_prompt(
         self,
