@@ -296,28 +296,57 @@ async def get_product_evolution(
     if metric not in ["unit_price", "quantity", "amount"]:
         raise HTTPException(status_code=400, detail="Invalid metric")
 
-    # Get product details
+    # Get product details with supplier
     products_query = (
         supabase.table("produits")
-        .select("id, reference, designation")
+        .select("id, reference, designation, fournisseur_id, unite")
         .in_("id", product_ids)
         .eq("user_id", user_id)
     )
     products_result = products_query.execute()
+    products_data = products_result.data or []
+
+    # Get supplier names
+    supplier_ids = {p.get("fournisseur_id") for p in products_data if p.get("fournisseur_id")}
+    supplier_name_map = {}
+    if supplier_ids:
+        suppliers_query = (
+            supabase.table("fournisseurs")
+            .select("id, nom")
+            .in_("id", list(supplier_ids))
+        )
+        suppliers_result = suppliers_query.execute()
+        supplier_name_map = {s["id"]: s.get("nom", "") for s in (suppliers_result.data or [])}
+
     products_map = {
         p["id"]: f"{p.get('reference', '')} - {p.get('designation', '')}".strip(" -")
-        for p in (products_result.data or [])
+        for p in products_data
     }
+
+    # Map product ID to supplier name and unite
+    product_supplier_map = {
+        p["id"]: supplier_name_map.get(p.get("fournisseur_id"), None)
+        for p in products_data
+    }
+    product_unite_map = {p["id"]: p.get("unite") for p in products_data}
 
     # Get invoice lines with facture date
     lines_query = (
         supabase.table("lignes_facture")
-        .select("produit_id, prix_unitaire, quantite, montant, facture_id, unite, poids_volume")
+        .select("produit_id, prix_unitaire, quantite, montant, facture_id, unite, poids_volume, collisage")
         .in_("produit_id", product_ids)
         .eq("user_id", user_id)
     )
     lines_result = lines_query.execute()
     lines_data = lines_result.data or []
+
+    # Get most recent collisage for each product
+    product_collisage_map = {}
+    for line in lines_data:
+        pid = line.get("produit_id")
+        collisage = line.get("collisage")
+        if pid and collisage is not None:
+            product_collisage_map[pid] = collisage  # Last one wins (most recent)
 
     # Get facture dates
     facture_ids = list({line.get("facture_id") for line in lines_data if line.get("facture_id")})
@@ -408,6 +437,9 @@ async def get_product_evolution(
             ProductTimeSeries(
                 productId=product_id,
                 productName=products_map[product_id],
+                supplierName=product_supplier_map.get(product_id),
+                unite=product_unite_map.get(product_id),
+                collisage=product_collisage_map.get(product_id),
                 dataPoints=data_points,
             )
         )

@@ -105,6 +105,9 @@ class ProductTimeSeries(BaseModel):
 
     productId: int
     productName: str
+    supplierName: str | None = None
+    unite: str | None = None
+    collisage: float | None = None
     dataPoints: List[TimeDataPoint]
 
 

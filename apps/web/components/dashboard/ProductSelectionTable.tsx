@@ -10,6 +10,8 @@ interface Product {
   fournisseur_id: number | null;
   categorie_id: number | null;
   marque_id: number | null;
+  unite: string | null;
+  collisage?: number | null;
   fournisseur_nom?: string;
   categorie_nom?: string;
   marque_nom?: string;
@@ -67,7 +69,7 @@ export const ProductSelectionTable = ({
       try {
         const query = supabase
           .from("produits")
-          .select("id, reference, designation, fournisseur_id, categorie_id, marque_id")
+          .select("id, reference, designation, fournisseur_id, categorie_id, marque_id, unite")
           .eq("user_id", userId)
           .order("designation");
 
@@ -84,11 +86,43 @@ export const ProductSelectionTable = ({
         const { data, error } = await query;
         if (error) throw error;
 
+        // Fetch packaging (collisage) from lignes_facture
+        const productIds = (data ?? []).map((p) => p.id);
+        let packagingMap: Record<number, number> = {};
+
+        if (productIds.length > 0) {
+          const { data: linesData } = await supabase
+            .from("lignes_facture")
+            .select("produit_id, collisage")
+            .in("produit_id", productIds)
+            .eq("user_id", userId)
+            .not("collisage", "is", null);
+
+          // Get most recent non-null collisage for each product
+          const collisageByProduct: Record<number, number[]> = {};
+          (linesData ?? []).forEach((line) => {
+            const pid = line.produit_id;
+            if (pid && line.collisage != null) {
+              if (!collisageByProduct[pid]) collisageByProduct[pid] = [];
+              collisageByProduct[pid].push(line.collisage);
+            }
+          });
+
+          // Use the most common collisage value
+          packagingMap = Object.fromEntries(
+            Object.entries(collisageByProduct).map(([pid, values]) => [
+              pid,
+              values[values.length - 1], // Use last value (most recent)
+            ])
+          );
+        }
+
         const mapped = (data ?? []).map((row) => ({
           ...row,
           fournisseur_nom: fournisseurs.find((f) => f.id === row.fournisseur_id)?.nom ?? "",
           categorie_nom: categories.find((c) => c.id === row.categorie_id)?.nom ?? "",
           marque_nom: marques.find((m) => m.id === row.marque_id)?.nom ?? "",
+          collisage: packagingMap[row.id] ?? null,
         }));
         setProducts(mapped);
       } catch (error) {
@@ -202,6 +236,12 @@ export const ProductSelectionTable = ({
                   Désignation
                 </th>
                 <th className="bg-slate-50 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">
+                  Collisage
+                </th>
+                <th className="bg-slate-50 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">
+                  Fournisseur
+                </th>
+                <th className="bg-slate-50 px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">
                   Marque
                 </th>
               </tr>
@@ -209,13 +249,13 @@ export const ProductSelectionTable = ({
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-4 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="px-3 py-4 text-center text-sm text-slate-500">
                     Chargement...
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-4 text-center text-sm text-slate-500">
+                  <td colSpan={7} className="px-3 py-4 text-center text-sm text-slate-500">
                     Aucun produit trouvé
                   </td>
                 </tr>
@@ -238,6 +278,8 @@ export const ProductSelectionTable = ({
                     </td>
                     <td className="px-3 py-2 text-sm text-slate-700">{product.reference || "-"}</td>
                     <td className="px-3 py-2 text-sm text-slate-600">{product.designation || "-"}</td>
+                    <td className="px-3 py-2 text-sm text-slate-500">{product.collisage ?? "-"}</td>
+                    <td className="px-3 py-2 text-sm text-slate-500">{product.fournisseur_nom || "-"}</td>
                     <td className="px-3 py-2 text-sm text-slate-500">{product.marque_nom || "-"}</td>
                   </tr>
                 ))

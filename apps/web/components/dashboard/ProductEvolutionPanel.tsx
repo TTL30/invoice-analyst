@@ -69,12 +69,20 @@ export const ProductEvolutionPanel = ({ startDate, endDate }: ProductEvolutionPa
     }
   };
 
-  const chartData = evolutionData?.series.map((series, index) => ({
-    type: "scatter" as const,
-    mode: "lines+markers" as const,
-    name: series.productName,
-    x: series.dataPoints.map((point) => point.date),
-    y: series.dataPoints.map((point) => point.value),
+  const chartData = evolutionData?.series.map((series, index) => {
+    let name = series.productName;
+    if (series.supplierName || series.collisage) {
+      const parts = [];
+      if (series.supplierName) parts.push(series.supplierName);
+      if (series.collisage) parts.push(`x${series.collisage}`);
+      name = `${series.productName} (${parts.join(" - ")})`;
+    }
+    return {
+      type: "scatter" as const,
+      mode: "lines+markers" as const,
+      name,
+      x: series.dataPoints.map((point) => point.date),
+      y: series.dataPoints.map((point) => point.value),
     customdata: series.dataPoints.map((point) => [
       point.unitPrice ?? 0,
       point.quantity ?? 0,
@@ -95,7 +103,8 @@ export const ProductEvolutionPanel = ({ startDate, endDate }: ProductEvolutionPa
       color: CHART_COLORS[index % CHART_COLORS.length],
       size: 6,
     },
-  })) || [];
+    };
+  }) || [];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
