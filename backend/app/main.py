@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
+from .middleware import APIKeyMiddleware
 from .routers import dashboard, extraction, invoices, products
 
 
@@ -23,6 +24,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.add_middleware(APIKeyMiddleware)
 
     app.include_router(extraction.router, prefix="/api")
     app.include_router(invoices.router, prefix="/api")

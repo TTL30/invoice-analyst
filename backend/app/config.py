@@ -19,6 +19,7 @@ class Settings:
     supabase_url: str
     supabase_key: str
     mistral_api_key: str
+    api_key: str | None = None
     invoices_bucket: str = "invoices"
     cors_origins: List[str] | None = None
 
@@ -37,14 +38,13 @@ def get_settings() -> Settings:
             supabase_url=os.environ["SUPABASE_URL"],
             supabase_key=os.environ["SUPABASE_KEY"],
             mistral_api_key=os.environ["MISTRAL_API_KEY"],
+            api_key=os.environ.get("API_KEY"),
             invoices_bucket=os.environ.get("SUPABASE_INVOICES_BUCKET", "invoices"),
             cors_origins=cors_origins,
         )
     except KeyError as exc:
         missing = ", ".join(sorted({key for key in exc.args}))
-        raise RuntimeError(
-            f"Missing required environment variables: {missing}"
-        ) from exc
+        raise RuntimeError(f"Missing required environment variables: {missing}") from exc
 
 
 def get_supabase():
