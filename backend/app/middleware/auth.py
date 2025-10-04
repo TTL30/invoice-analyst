@@ -12,7 +12,7 @@ from ..config import get_settings
 class APIKeyMiddleware(BaseHTTPMiddleware):
     """Middleware to validate API key for protected endpoints."""
 
-    PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+    PUBLIC_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
 
     async def dispatch(self, request: Request, call_next) -> Response:
         """Validate API key before processing request."""

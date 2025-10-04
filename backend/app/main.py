@@ -32,6 +32,10 @@ def create_app() -> FastAPI:
     app.include_router(products.router, prefix="/api")
     app.include_router(dashboard.router, prefix="/api")
 
+    @app.get("/", tags=["info"])
+    def root() -> dict[str, str]:
+        return {"message": "Invoice Analyst API", "version": "1.0.0", "docs": "/docs"}
+
     @app.get("/health", tags=["health"])
     def healthcheck() -> dict[str, str]:
         return {"status": "ok"}
