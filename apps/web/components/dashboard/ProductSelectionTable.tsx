@@ -10,7 +10,6 @@ interface Product {
   fournisseur_id: number | null;
   categorie_id: number | null;
   marque_id: number | null;
-  unite: string | null;
   collisage?: number | null;
   fournisseur_nom?: string;
   categorie_nom?: string;
@@ -69,7 +68,7 @@ export const ProductSelectionTable = ({
       try {
         const query = supabase
           .from("produits")
-          .select("id, reference, designation, fournisseur_id, categorie_id, marque_id, unite")
+          .select("id, reference, designation, fournisseur_id, categorie_id, marque_id")
           .eq("user_id", userId)
           .order("designation");
 
