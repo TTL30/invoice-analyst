@@ -126,6 +126,7 @@ export const ExtractionSteps = ({ categories, marques, fournisseurs }: Extractio
       console.error("Failed to restore extraction state:", error);
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   // Save state to sessionStorage whenever it changes
@@ -490,7 +491,7 @@ export const ExtractionSteps = ({ categories, marques, fournisseurs }: Extractio
           <>
             <div className="flex items-center justify-center rounded-full card !p-1 mb-4">
               <div className="px-4 py-2">
-                <h3 className="text-sm font-medium text-gray-900">Renseignez un premier article pour guider l'extraction.</h3>
+                <h3 className="text-sm font-medium text-gray-900">Renseignez un premier article pour guider l&apos;extraction.</h3>
               </div>
             </div>
 
@@ -612,7 +613,7 @@ export const ExtractionSteps = ({ categories, marques, fournisseurs }: Extractio
                     Extraction en cours...
                   </>
                 ) : (
-                  "Lancer l'extraction"
+                  "Lancer l&apos;extraction"
                 )}
               </button>
             </div>

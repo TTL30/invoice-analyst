@@ -331,7 +331,7 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
 
       // Check if it's an unsupported invoice type error
       if (errorMessage.includes("Invoice type not supported") || errorMessage.includes("not supported")) {
-        toast.error("Type de facture non supporté, contactez l'administrateur");
+        toast.error("Type de facture non supporté, contactez l&apos;administrateur");
       } else {
         toast.error(errorMessage);
       }
@@ -641,7 +641,7 @@ export const ExtractionWorkspace = ({ categories, marques, fournisseurs }: Extra
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-800">Importer une facture</h2>
-                <p className="text-sm text-slate-500">Déposez votre PDF pour lancer l'extraction automatiquement.</p>
+                <p className="text-sm text-slate-500">Déposez votre PDF pour lancer l&apos;extraction automatiquement.</p>
               </div>
             </div>
             <PdfDropzone
