@@ -15,12 +15,11 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="Invoice Analyst API", version="1.0.0")
     allow_origins = settings.cors_origins or ["*"]
-    allow_credentials = "*" not in allow_origins
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=allow_origins,
-        allow_credentials=allow_credentials,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
