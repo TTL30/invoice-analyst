@@ -287,11 +287,10 @@ export const ExtractionSteps = ({ categories, marques, fournisseurs }: Extractio
 
     const numericValues = [packaging, quantity, unitPrice, total];
     const numericFieldsValid = numericValues.every((value) => {
-      if (value === null || value === undefined || value === "") {
+      if (value === null || value === undefined) {
         return false;
       }
-      const parsed = Number(value);
-      return !Number.isNaN(parsed) && parsed > 0;
+      return !Number.isNaN(value) && value > 0;
     });
 
     const textFieldsValid = [reference, designation, marque, category].every((value) => {
@@ -346,7 +345,6 @@ export const ExtractionSteps = ({ categories, marques, fournisseurs }: Extractio
       setIsExtracting(true);
       const extraction = await runExtraction({
         file,
-        confirmationRow,
         userId,
       });
       setResult(extraction);

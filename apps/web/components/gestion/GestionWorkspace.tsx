@@ -398,9 +398,9 @@ export const GestionWorkspace = () => {
                 <tr key={row.id} className="bg-white hover:bg-slate-50">
                   <td className="px-4 py-3 text-sm text-slate-700 w-1/6">{renderCell(row, "reference", row.reference)}</td>
                   <td className="px-4 py-3 text-sm text-slate-500 w-1/6">{renderCell(row, "designation", row.designation)}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500 w-1/6">{renderCell(row, "fournisseur_nom", row.fournisseur_nom)}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500 w-1/6">{renderCell(row, "marque_nom", row.marque_nom)}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500 w-1/6">{renderCell(row, "categorie_nom", row.categorie_nom)}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500 w-1/6">{renderCell(row, "fournisseur_nom", row.fournisseur_nom ?? null)}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500 w-1/6">{renderCell(row, "marque_nom", row.marque_nom ?? null)}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500 w-1/6">{renderCell(row, "categorie_nom", row.categorie_nom ?? null)}</td>
                   <td className="px-4 py-3 text-right w-1/6">
                     <button
                       type="button"
