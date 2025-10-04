@@ -40,6 +40,14 @@ def create_app() -> FastAPI:
     def healthcheck() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/debug/cors", tags=["debug"])
+    def debug_cors():
+        return {
+            "allow_origins": allow_origins,
+            "allow_credentials": allow_credentials,
+            "cors_env_var": settings.cors_origins,
+        }
+
     return app
 
 
