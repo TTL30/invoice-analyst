@@ -18,6 +18,10 @@ class APIKeyMiddleware(BaseHTTPMiddleware):
         """Validate API key before processing request."""
         settings = get_settings()
 
+        # Skip API key check for CORS preflight requests
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         # Skip API key check for public paths
         if request.url.path in self.PUBLIC_PATHS:
             return await call_next(request)
