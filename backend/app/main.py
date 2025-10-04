@@ -43,8 +43,8 @@ def create_app() -> FastAPI:
     def debug_cors():
         return {
             "allow_origins": allow_origins,
-            "allow_credentials": allow_credentials,
             "cors_env_var": settings.cors_origins,
+            "api_key_configured": bool(settings.api_key),
         }
 
     return app
